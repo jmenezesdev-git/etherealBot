@@ -1,0 +1,33 @@
+:host {
+  --content-padding: 10px;
+}
+header {
+  display: block;
+  height: 60px;
+  padding: var(--content-padding);
+  box-shadow: 0px 5px 25px var(--shadow-color);
+}
+.content {
+  padding: var(--content-padding);
+}
+.inline {
+  padding: var(--content-padding);
+  display: inline-block;
+}
+button{
+  background-color: #f44336;
+      color: white;
+      padding: 15px 25px;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+  border:none;
+}
+
+button:hover, button:active {
+      background-color: rgb(42, 48, 122);
+  }
+
+
+
+ 
