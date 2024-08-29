@@ -1,4 +1,4 @@
-import {Component, OnInit, ViewChild} from '@angular/core';
+import {Component, OnInit, ViewChild, ViewEncapsulation} from '@angular/core';
 import {HomeComponent} from './home/home.component';
 import {ActivatedRoute, ParamMap, RouterLink, RouterOutlet} from '@angular/router';
 import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams, HttpClientModule, HttpParameterCodec  } from '@angular/common/http';
@@ -35,7 +35,7 @@ import { YouTubePlayerModule } from '@angular/youtube-player';
   standalone: true,
   imports: [HomeComponent, RouterLink, RouterOutlet, HttpClientModule,  FormsModule, YouTubePlayerModule],
   templateUrl: './app.component.html',
-
+  encapsulation: ViewEncapsulation.None,
   styleUrls: ['./app.component.css'],
 })
 
@@ -65,10 +65,14 @@ export class AppComponent implements OnInit{
   height = 200;
   width = 400;
 
+
+  spanStyle = {'background-color' : 'rgb(255, 0, 0)'};
+
   //"{'autoplay': 1}"
 
-  ytPlayerVars : YT.PlayerVars | undefined;
+  //ytPlayerVars : YT.PlayerVars | undefined;
   //ytPlayerVars= {"autoplay": "1", "enablejsapi": "1"};
+  ytPlayerVars = {'autoplay': 0, 'enablejsapi': 1};
   //, "enablejsapi": 1
 
   // enablejsapi=1
@@ -76,8 +80,8 @@ export class AppComponent implements OnInit{
   endSeconds = 120;
   
 
-  constructor(private route: ActivatedRoute, private http: HttpClient, private ytPlayerVars: YT.PlayerVars){
-
+  constructor(private route: ActivatedRoute, private http: HttpClient){
+    //, private ytPlayerVars: YT.PlayerVars
   }
   private handleError(error: HttpErrorResponse) {
     if (error.status === 0) {
@@ -169,13 +173,13 @@ export class AppComponent implements OnInit{
           console.log(this.scope);
           //console.log(environment.TwitchOAuthAccessToken);
           //post based on retrieved information. I think?
-
+          
           (async () => {
             externalAccessCall();
           })();
 
           //Handling ytPlaylistInitialization
-          this.videoId = this.getYTVideoIDFromURL(popPlaylist());
+        //  this.videoId = this.getYTVideoIDFromURL(popPlaylist());
 
         }
   );

@@ -1,6 +1,7 @@
 //import { environment } from './app/environment';
 import { first } from 'rxjs';
 import {environment} from './app/environment';
+import { getFirstYoutubeResult } from './app/apiFunctions/youtube';
 //import { Console } from 'console';
 //const { Console } = require("console");
 
@@ -16,15 +17,76 @@ import {environment} from './app/environment';
 
 /*
 
+COMPLETED
+	Basic OAuth
+	Twitch Connection
+	Youtube Playlist/Queue core functions
+	!xsr for a youtube video
+	it will autoplay the next track in queue
+	next button will dredge up the next track and play it.
+	OAuth no longer assumes a default username
 
-ALSO NEED TO CHANGE OAUTH TOKEN GENERATION TO BE OPTIONAL/OCCASIONAL
 
-Save session information in cookies so we auto reload.
+#	= High priority
+WIP = Work in Progress
+L	= Low Priority
 
-URGENT: Fix emptied STREAM_ACCOUNT_NAME cleaned for github commit. 
-NEXT: CSS
-THEN:	xsr regex fix
 
+
+URGENT:	youtube search incomplete
+NEXT: xsr change to youtube search return first result, xsr provides feedback as to remaining time and newly added songname
+THEN:	
+Frontend Queue interface
+#	Drag & Drop interface to reorder?
+	List includes the following:
+		Video/Song Name
+		Requested By
+		Duration
+		Option to delete from queue
+		Option to add to default Queue
+Frontend Settings interface
+#	Length Limit
+#	Songs Per User
+#	Default Playlist	///Plays when there are no songs in queue
+						///first song is the default when a user logs in or opens the page
+L	Voteskip Count
+L	Disabling commands	
+L	Enable Spotify/YT 	
+Chat Commands
+WIP	!xsr <required>		///add arg1 to song queue, when in doubt it is YT song.
+	!xskip				///Mod only skip current song (same as next)
+	!xwrongsong			///removes users latest song from queue
+#	!xsong 				///Indicates currently playing song information
+	!xlimit <optional>  ///Sets Limits to song requests per user defaults to infinite
+L	!xsonglist			///link to dynamic page containing a readonly view of the current queue
+L		Support Spotify as well as YT
+L	!xremove<optional>	///removes current or nth song in queue
+L	!xpause				///pauses active content in queue
+L	!xplay				///plays active content in queue
+L	!xvoteskip			///initiates vote to skip current song. resets upon hitting a new song or resetting current song.
+L	!lastsong<optional>	///Get song information of nth past song, indicates total past song count
+						///resets on what, login? 12h?
+L	!xAddDef			///Mod only adds to default playlist
+Cookies
+#	Remember my login
+	NEED TO CHANGE OAUTH TOKEN GENERATION TO BE OPTIONAL/OCCASIONAL	
+Database
+	Remember my playlists & settings outside of cookies
+	mongodb for the lulz?
+Ai Chatbot Integration
+L	Your favorite waifu in chat
+Test possibility for automated redeems via channel points
+L	Add extra songs to queue for points
+L	extra voteskips for points
+L	+more
+Twitch plays AMQ
+LL	Yes..
+Recurring message posting
+LLL	Standard bot feature. Every x mins post "...."
+
+
+//For spotify
+	Could be new song request command "!xspr <search>" or "!xsr sp <search>"
 
 
 3ventic
@@ -45,6 +107,7 @@ So you need an application to get the chat login token. If you want to do more w
 
 
 //import { webSocket } from "rxjs/webSocket";
+// does this array contain results only?
 var playlistArray = ['https://www.youtube.com/watch?v=ZXZZZZZZZ', 'https://www.youtube.com/watch?v=aYzt6WJEx10', 'https://www.youtube.com/watch?v=ocQ7sFFxOh4&pp=ygUJaW4gZmxhbWVz', 'https://www.youtube.com/watch?v=LQXgNLGDPgo&pp=ygUZZWR1Y2F0ZWQgZm9vbCBpcm9uIG1haWRlbg%3D%3D'];
 
 var CLIENT_SECRETID = 'ABC1234';
@@ -85,7 +148,7 @@ export async function externalAccessCall(){
 	CLIENT_SECRETID = environment.CLIENT_SECRETID;
 	//await getAuth();
 	await getAppOAUTH_TOKEN();
-	await getUserIDs();
+	await getAdministrativeUserIDs();
 	// Start WebSocket client and register handlers
 	const websocketClient = startWebSocketClient();
 
@@ -166,11 +229,11 @@ async function getAuth() {
 	//console.log("Validated token.");
 }
 
-async function getUserIDs(){
+export async function getAdministrativeUserIDs(){
 	// https://dev.twitch.tv/docs/authentication/validate-tokens/#how-to-validate-a-token
 
 	console.log('Calling getUserIDs\n');
-	const response = await fetch('https://api.twitch.tv/helix/users?login=' + STREAM_ACCOUNT_NAME + '&login=' + BOT_ACCOUNT_NAME  , {
+	const botIDresponse = await fetch('https://api.twitch.tv/helix/users?login=' + BOT_ACCOUNT_NAME  , {
 		method: 'GET',
 		headers: {
 			"Client-ID": CLIENT_ID,
@@ -182,33 +245,44 @@ async function getUserIDs(){
 
 
 
-	if (response.status != 200) {
-		let data = await response.json();
-		//console.error("Token is not valid. helix/users returned status code " + response.status);
-		//console.error(data);
+	if (botIDresponse.status != 200) {
+		let data = await botIDresponse.json();
+		console.log('Twitch errored out on Bot-ID request.');
 		return process.exit(1);
 	}
 
-	const json = await response.json();
+	const json = await botIDresponse.json();
 	console.log(json.data[0].display_name);
 	//I think we are assigning correctly. 403 is from bot's permissions on main account 
-	if (json.data[0].display_name == 'etherealAffairs'){
-		CHAT_CHANNEL_USER_ID = json.data[0].id;
-		BOT_USER_ID = json.data[1].id;
+	if (json.data[0].display_name == BOT_ACCOUNT_NAME){
+		BOT_USER_ID = json.data[0].id;
 		
-		console.log('Assigned broadcaster_id as: ' + json.data[0].display_name );
 		console.log('Assigned sender_id as: ' + json.data[1].display_name);
 	}
-	else if(json.data[1].display_name == 'etherealAffairs'){ 
-		CHAT_CHANNEL_USER_ID = json.data[1].id;
-		BOT_USER_ID = json.data[0].id;
-		console.log('Assigned broadcaster_id as: ' + json.data[1].display_name );
-		console.log('Assigned sender_id as: ' + json.data[0].display_name);
+	const ownIDresponse = await fetch('https://api.twitch.tv/helix/users'  , {
+		method: 'GET',
+		headers: {
+			"Client-ID": CLIENT_ID,
+			"Authorization": "Bearer "+ OAUTH_TOKEN,
+		},
+	});
+	
+
+	if (ownIDresponse.status != 200) {
+		let data = await ownIDresponse.json();
+		console.log('Twitch errored out on self-ID request.');
 	}
+
+	let json2 = await ownIDresponse.json();
+	console.log(json2.data[0].display_name);
+	CHAT_CHANNEL_USER_ID = json2.data[0].id;
+	STREAM_ACCOUNT_NAME = json2.data[0].display_name;	
+	console.log('Assigned broadcaster_id as: ' + json2.data[0].display_name);
+
 	//console.log(json);
 	//console.log("The Chat channel user id = " + CHAT_CHANNEL_USER_ID);
 	//console.log("The Bot user id = " + BOT_USER_ID);
-	//console.log(response.toString());
+	//console.log(botIDresponse.toString());
 }
 
 
@@ -264,13 +338,9 @@ function handleWebSocketMessage(data) {
 					var sender = data.payload.event.chatter_user_name.toString();
 					console.log(messageText);
 					if (startsWith('!xsr', messageText)){
-						if(isYoutubeURI(messageText)){
-							addSongToQueue(getFirstArgOfCommand(messageText));
+						addSongToQueue(getFirstArgOfCommand(messageText));
 
-						}
-						else{
-							sendChatMessage('@'+ sender + ' invalid Youtube URL detected in ' + messageText);
-						}
+						
 
 					} else if (startsWith('!xnextSong', messageText)){
 						
@@ -343,11 +413,11 @@ function nextSongInQueue(){
 	sendChatMessage('The next song in queue feature is not available yet!')
 }
 
+//INCOMPLETE
 function isYoutubeURI(messageText){
-///		http://www.youtube.com/watch?v=oyA8odjCzZ4
-
+	//This function returns true if we should be using youtube and it is a valid Youtube URI rather than spotify/soundcloud
 	const regex = /https?/i;
-////            s?:\/\/youtu\(.be|be.com\)\/watch\\\?v=\[A-Za-Z0-9\]
+	////            s?:\/\/youtu\(.be|be.com\)\/watch\\\?v=\[A-Za-Z0-9\]
 
 	if (messageText.match(regex)){
 		return true;
@@ -365,8 +435,18 @@ function getFirstArgOfCommand(command){
 
 function addSongToQueue(songArg){
 
-	playlistArray.push(songArg);
-	sendChatMessage('Added ' + songArg + ' to queue in position ' + playlistArray.length + '!');
+	if(isYoutubeURI(messageText)){
+		playlistArray.push(songArg);
+		sendChatMessage('Added ' + songArg + ' to queue in position ' + playlistArray.length + '!');				
+	}
+	else{
+		var result = getFirstYoutubeResult(songArg);
+		playlistArray.push(result);
+		sendChatMessage('Added ' + result + ' to queue in position ' + playlistArray.length + '!');	
+		//sendChatMessage('@'+ sender + ' invalid Youtube URL detected in ' + messageText);
+	}
+
+
 
 }
 
