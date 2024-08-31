@@ -33,7 +33,7 @@ L	= Low Priority
 
 
 
-URGENT:	youtube search incomplete
+URGENT:	youtube search incomplete - app.component.ts will not work with new object
 NEXT: xsr change to youtube search return first result, xsr provides feedback as to remaining time and newly added songname
 THEN:	
 Frontend Queue interface
@@ -108,7 +108,7 @@ So you need an application to get the chat login token. If you want to do more w
 
 //import { webSocket } from "rxjs/webSocket";
 // does this array contain results only?
-var playlistArray = ['https://www.youtube.com/watch?v=ZXZZZZZZZ', 'https://www.youtube.com/watch?v=aYzt6WJEx10', 'https://www.youtube.com/watch?v=ocQ7sFFxOh4&pp=ygUJaW4gZmxhbWVz', 'https://www.youtube.com/watch?v=LQXgNLGDPgo&pp=ygUZZWR1Y2F0ZWQgZm9vbCBpcm9uIG1haWRlbg%3D%3D'];
+var playlistArray = [];//['https://www.youtube.com/watch?v=ZXZZZZZZZ', 'https://www.youtube.com/watch?v=aYzt6WJEx10', 'https://www.youtube.com/watch?v=ocQ7sFFxOh4&pp=ygUJaW4gZmxhbWVz', 'https://www.youtube.com/watch?v=LQXgNLGDPgo&pp=ygUZZWR1Y2F0ZWQgZm9vbCBpcm9uIG1haWRlbg%3D%3D'];
 
 var CLIENT_SECRETID = 'ABC1234';
 var BOT_USER_ID = 'CHANGE_ME_TO_YOUR_BOTS_USER_ID'; // This is the User ID of the chat bot
@@ -416,8 +416,8 @@ function nextSongInQueue(){
 //INCOMPLETE
 function isYoutubeURI(messageText){
 	//This function returns true if we should be using youtube and it is a valid Youtube URI rather than spotify/soundcloud
-	const regex = /https?/i;
-	////            s?:\/\/youtu\(.be|be.com\)\/watch\\\?v=\[A-Za-Z0-9\]
+	const regex = /youtu/i;
+	////            https?:\/\/youtu\(.be|be.com\)\/watch\\\?v=\[A-Za-Z0-9\]
 
 	if (messageText.match(regex)){
 		return true;
@@ -428,21 +428,27 @@ function isYoutubeURI(messageText){
 }
 
 function getFirstArgOfCommand(command){
-	const regex = /^.*? (\S+).*?$/i;
+	const regex = /^.*? (\S+.*?$)/i;
 	//console.log(command.replace(regex, $1))
  return command.replace(regex, "$1");
 }
 
-function addSongToQueue(songArg){
+async function addSongToQueue(songArg){
 
-	if(isYoutubeURI(messageText)){
+	if(isYoutubeURI(songArg)){
 		playlistArray.push(songArg);
 		sendChatMessage('Added ' + songArg + ' to queue in position ' + playlistArray.length + '!');				
 	}
 	else{
-		var result = getFirstYoutubeResult(songArg);
-		playlistArray.push(result);
-		sendChatMessage('Added ' + result + ' to queue in position ' + playlistArray.length + '!');	
+		var result = await getFirstYoutubeResult(songArg);
+		if(result.songTitle != null && result.songTitle != undefined && result.songTitle != ""){
+			playlistArray.push(result);
+			sendChatMessage('Added ' + result.songTitle + ' to queue in position ' + playlistArray.length + '!');	
+		}
+		else{
+			sendChatMessage('Something went wrong when adding ' + songArg + ' to the list, sorry!');	
+
+		}
 		//sendChatMessage('@'+ sender + ' invalid Youtube URL detected in ' + messageText);
 	}
 
