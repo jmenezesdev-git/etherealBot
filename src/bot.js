@@ -1,13 +1,8 @@
-//import { environment } from './app/environment';
-import { first } from 'rxjs';
+import { first, queue } from 'rxjs';
 import {environment} from './app/environment';
-import { getFirstYoutubeResult } from './app/apiFunctions/youtube';
-//import { Console } from 'console';
-//const { Console } = require("console");
-
-
-
-
+import { getFirstYoutubeResult, getYoutubeVideoByID, youtubeVideoInfo } from './app/apiFunctions/youtube';
+import {AppComponent} from './app/app.component';
+import { SharedService } from './app/shared.service';
 
 
 
@@ -18,14 +13,16 @@ import { getFirstYoutubeResult } from './app/apiFunctions/youtube';
 /*
 
 COMPLETED
-	Basic OAuth
-	Twitch Connection
-	Youtube Playlist/Queue core functions
-	!xsr for a youtube video
-	it will autoplay the next track in queue
-	next button will dredge up the next track and play it.
-	OAuth no longer assumes a default username
-
+#	Basic OAuth
+#	Twitch Connection
+#	Youtube Playlist/Queue core functions
+#	!xsr for a youtube video
+#	it will autoplay the next track in queue
+#	next button will dredge up the next track and play it.
+#	OAuth no longer assumes a default username
+#	!xsr <required>		///add arg1 to song queue, when in doubt it is YT song.
+#	!xsong 				///Indicates currently playing song information
+	!xwrongsong			///removes users latest song from queue
 
 #	= High priority
 WIP = Work in Progress
@@ -53,10 +50,7 @@ L	Voteskip Count
 L	Disabling commands	
 L	Enable Spotify/YT 	
 Chat Commands
-WIP	!xsr <required>		///add arg1 to song queue, when in doubt it is YT song.
 	!xskip				///Mod only skip current song (same as next)
-	!xwrongsong			///removes users latest song from queue
-#	!xsong 				///Indicates currently playing song information
 	!xlimit <optional>  ///Sets Limits to song requests per user defaults to infinite
 L	!xsonglist			///link to dynamic page containing a readonly view of the current queue
 L		Support Spotify as well as YT
@@ -109,7 +103,8 @@ So you need an application to get the chat login token. If you want to do more w
 //import { webSocket } from "rxjs/webSocket";
 // does this array contain results only?
 var playlistArray = [];//['https://www.youtube.com/watch?v=ZXZZZZZZZ', 'https://www.youtube.com/watch?v=aYzt6WJEx10', 'https://www.youtube.com/watch?v=ocQ7sFFxOh4&pp=ygUJaW4gZmxhbWVz', 'https://www.youtube.com/watch?v=LQXgNLGDPgo&pp=ygUZZWR1Y2F0ZWQgZm9vbCBpcm9uIG1haWRlbg%3D%3D'];
-
+var currentSong;
+var sharedService;
 var CLIENT_SECRETID = 'ABC1234';
 var BOT_USER_ID = 'CHANGE_ME_TO_YOUR_BOTS_USER_ID'; // This is the User ID of the chat bot
 var OAUTH_TOKEN = 'CHANGE_ME'; // Needs scopes user:bot, user:read:chat, user:write:chat
@@ -119,7 +114,7 @@ var BOT_ACCOUNT_NAME = 'etherealBot';//need to set for alternative channels
 var APP_OAUTH_TOKEN = 'I_AM_SET_BY_CODE';
 var CHAT_CHANNEL_USER_ID = 'CHANGE_ME_TO_THE_CHAT_CHANNELS_USER_ID'; // This is the User ID of the channel that the bot will join and listen to chat messages of
 //What is the channel I am currently in?
-
+var optionalCommandPrefix = 'x';
 const EVENTSUB_WEBSOCKET_URL = 'wss://eventsub.wss.twitch.tv/ws';
 
 var websocketSessionID = "";
@@ -142,10 +137,12 @@ var websocketSessionID = "";
 	//const websocketClient = startWebSocketClient();
 })();
 
-export async function externalAccessCall(){
+export async function externalAccessCall(sentsharedService){
+
 	CLIENT_ID = environment.CLIENT_ID;
 	OAUTH_TOKEN = environment.TwitchOAuthAccessToken;
 	CLIENT_SECRETID = environment.CLIENT_SECRETID;
+	sharedService = sentsharedService;
 	//await getAuth();
 	await getAppOAUTH_TOKEN();
 	await getAdministrativeUserIDs();
@@ -327,7 +324,6 @@ function handleWebSocketMessage(data) {
 			switch (data.metadata.subscription_type) {
 				case 'channel.chat.message':
 					// First, print the message to the program's console.
-					//console.log(`MSG #${data.payload.event.broadcaster_user_login} <${data.payload.event.chatter_user_login}> ${data.payload.event.message.text}`);
 
 					// Then check to see if that message was "HeyGuys"
 					if (data.payload.event.message.text.trim() == "HeyGuys") {
@@ -337,15 +333,30 @@ function handleWebSocketMessage(data) {
 					var messageText = data.payload.event.message.text.toString();
 					var sender = data.payload.event.chatter_user_name.toString();
 					console.log(messageText);
-					if (startsWith('!xsr', messageText)){
-						addSongToQueue(getFirstArgOfCommand(messageText));
+					if (startsWith('!'+ optionalCommandPrefix +'sr', messageText)){
+						addSongToQueue(getFirstArgOfCommand(messageText), sender);
 
-						
-
-					} else if (startsWith('!xnextSong', messageText)){
+					} else if (startsWith('!'+ optionalCommandPrefix +'nextSong', messageText)){
 						
 						nextSongInQueue();
 
+					} else if (startsWith('!'+ optionalCommandPrefix +'song', messageText)){
+						if (currentSong != undefined && currentSong != null){
+							sendChatMessage('The current song is ' + currentSong.songTitle + ' by ' + currentSong.channelTitle + '. It was requested by' + currentSong.requestedBy + '.' + ' https://youtu.be/' + currentSong.videoId);
+						} else{
+							sendChatMessage('There is no current song!');
+						}
+					} else if (startsWith('!'+ optionalCommandPrefix +'wrongsong', messageText)){
+						if(playlistArray.length > 0){
+							for (let i = playlistArray.length; i > 0; i--) {
+								if (playlistArray[i-1].requestedBy == sender){
+									//remove from array
+									sendChatMessage('Removed' + playlistArray[i-1].songTitle + ' by ' + playlistArray[i-1].channelTitle + 'from playlist.');
+									playlistArray.splice(i-1,1);
+									i = 0; //halt iteration.
+								}
+							}
+						}
 					}
 					break;
 			}
@@ -358,6 +369,8 @@ function handleWebSocketMessage(data) {
 	}
 
 }
+
+
 
 function startsWith(regex, text){
 	if(text.match('^\s*'+regex)){
@@ -375,6 +388,12 @@ export function getPlaylist(){
 
 	return playlistArray;
 }
+
+export function clearCurrentSong(){
+	currentSong = undefined;
+
+}
+
 export function getPlaylistLength(){
 	return playlistArray.length;
 }
@@ -387,7 +406,13 @@ export function popPlaylist(){
 	// 	playlistArray = playlistArray.splice(index, 1);
 	// }
 	var firstTrack = playlistArray.shift();
-	console.log('returning: ' +firstTrack + ' the next one is: ' + playlistArray.at(0));
+	currentSong = firstTrack;
+	if (playlistArray.length == 0 && firstTrack != undefined && firstTrack != null){
+		console.log('returning: ' + firstTrack.songTitle + ' the play list is out of songs!');
+	}
+	else{
+		console.log('returning: ' + firstTrack.songTitle + ' the next one is: ' + playlistArray.at(0).songTitle);
+	}
 	if (firstTrack !== undefined){
 		return firstTrack;
 	}
@@ -395,11 +420,13 @@ export function popPlaylist(){
 		return "";
 	}
 }
+
+
 export function pushPlaylist(message){
-	if(isYoutubeURI(message)){
-		addSongToQueue(message);
-	}
+	
+		addSongToQueue(message, STREAM_ACCOUNT_NAME);
 }
+
 export function peekPlaylist(){
 	return peekPlaylistN(0);
 }
@@ -433,17 +460,139 @@ function getFirstArgOfCommand(command){
  return command.replace(regex, "$1");
 }
 
-async function addSongToQueue(songArg){
+export function tester(SS){
+	console.log("Test123456");
+	var ytVI = new youtubeVideoInfo("gXCI8vJTjqA", "", "");
+	ytVI.channelTitle = "幽閉サテライト・少女フラクタル・幽閉カタルシス 公式チャンネル";
+	ytVI.duration = "PT5M56S";
+	ytVI.embeddable = true;
+	ytVI.license = "youtube";
+	ytVI.privacyStatus = "public";
+	ytVI.publicStatsViewable = true;
+	ytVI.requestedBy = "etherealAffairs";
+	ytVI.songTitle = "【公式】【東方Vocal】幽閉サテライト / 華鳥風月/歌唱senya【FullMV】（原曲：六十年目の東方裁判 ～ Fate of Sixty Years）";
+	ytVI.uploadStatus = "processed";
+	ytVI.videoId = "gXCI8vJTjqA";
+	playlistArray.push(ytVI);
+	console.log(playlistArray.length);
+	console.log(sumActivePlaylistTime());
+	//console.log(sumActivePlaylistTime());
+	//x = new SharedService;
+	SS.sendUpdateActiveSongHook(popPlaylist());
+	
+
+}
+
+function sumActivePlaylistTime(){
+//time from youtube videos is of the format:  P#DT#H#M#S where # is a series of numbers and #DT, #H, #M are optional depending on video length
+	var days = 0;
+	var hours = 0;
+	var minutes = 0;
+	var seconds = 0;
+
+	const regexp = /PT((\d+)DT)?((\d+)H)?((\d+)M)?(\d+)S/g;
+
+	if (playlistArray.length > 0 && currentSong != undefined){
+		for (let i = 0; i < playlistArray.length; i++) {
+			let matches = playlistArray.at(i).duration.matchAll(regexp);
+			for (const match of matches) {
+				if (match.length > 7){
+					if(match[2] != undefined){
+						days += Number(match[2]);
+					}
+					if (match[4] != undefined){
+						hours += Number(match[4]);
+					}
+					if (match[6] != undefined){
+						minutes += Number(match[6]);
+					}
+					if (match[7] != undefined){
+						seconds += Number(match[7]);
+					}
+				}
+			}
+		}
+		if (currentSong != null && currentSong != undefined && currentSong.duration.length > 0){
+			let matches = currentSong.duration.matchAll(regexp);
+			for (const match of matches) {
+				if (match.length > 7){
+					if(match[2] != undefined){
+						days += Number(match[2]);
+					}
+					if (match[4] != undefined){
+						hours += Number(match[4]);
+					}
+					if (match[6] != undefined){
+						minutes += Number(match[6]);
+					}
+					if (match[7] != undefined){
+						seconds += Number(match[7]);
+					}
+				}
+			}
+
+		}
+		var returnString = "";
+		if (days > 0){
+			returnString += days + " days";
+		}
+		if (hours > 0){
+			if (returnString.length > 0){
+				returnString += " ";
+			}
+			returnString += hours + "hrs";
+		}
+		if (minutes > 0){
+			if (returnString.length > 0){
+				returnString += " ";
+			}
+			returnString += minutes + "mins";
+		}
+		if (seconds > 0){
+			if (returnString.length > 0){
+				returnString += " and ";
+			}
+			returnString += seconds + "secs";
+		}
+		return returnString;
+	} else{
+		return "0 seconds";
+	}
+
+}
+
+function addSongConfirmMessage(ytVI){
+
+	
+	
+	// 'Added ' + result.songTitle + ' to queue in position ' + playlistArray.length + '!'
+	var durationText = sumActivePlaylistTime();
+	if (durationText == "0 seconds"){
+		return 'Added '+ ytVI.songTitle + ' to queue in position ' + playlistArray.length + ' (playing immediately)';
+	}
+	else{
+		return 'Added '+ ytVI.songTitle + ' to queue in position ' + playlistArray.length + ' (playing in ' + sumActivePlaylistTime() + ')';
+	}
+}
+
+
+async function addSongToQueue(songArg, sender){
 
 	if(isYoutubeURI(songArg)){
-		playlistArray.push(songArg);
-		sendChatMessage('Added ' + songArg + ' to queue in position ' + playlistArray.length + '!');				
+		const regex = /^.*watch\?v=([A-Za-z0-9]*)(&.*)?$/i;
+		songArg = songArg.replace(regex, "$1");
+		ytVI = new youtubeVideoInfo(songArg, "", "");
+		getYoutubeVideoByID(new youtubeVideoInfo(songArg, "", ""));
+		ytVI.requestedBy = sender;
+		playlistArray.push(ytVI);
+		sendChatMessage(addSongConfirmMessage(result));			
 	}
 	else{
 		var result = await getFirstYoutubeResult(songArg);
 		if(result.songTitle != null && result.songTitle != undefined && result.songTitle != ""){
+			result.requestedBy = sender;
 			playlistArray.push(result);
-			sendChatMessage('Added ' + result.songTitle + ' to queue in position ' + playlistArray.length + '!');	
+			sendChatMessage(addSongConfirmMessage(result));
 		}
 		else{
 			sendChatMessage('Something went wrong when adding ' + songArg + ' to the list, sorry!');	
@@ -452,9 +601,18 @@ async function addSongToQueue(songArg){
 		//sendChatMessage('@'+ sender + ' invalid Youtube URL detected in ' + messageText);
 	}
 
+	if (currentSong == undefined && playlistArray.length > 0){
+		
+		sharedService.sendUpdateActiveSongHook(popPlaylist());
+	}
+
 
 
 }
+
+/////having a backup playilist is optional (we will likely have one soonish)
+////what do when songs run out and someone adds a track?
+////what I want it to do is resume play immediately.
 
 
 

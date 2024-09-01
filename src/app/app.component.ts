@@ -2,9 +2,11 @@ import {Component, OnInit, ViewChild, ViewEncapsulation} from '@angular/core';
 import {HomeComponent} from './home/home.component';
 import {ActivatedRoute, ParamMap, RouterLink, RouterOutlet} from '@angular/router';
 import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams, HttpClientModule, HttpParameterCodec  } from '@angular/common/http';
-import { catchError, throwError } from 'rxjs';
+import { catchError, throwError, Subscription } from 'rxjs';
 import { environment } from './environment';
-import { externalAccessCall, popPlaylist } from '../bot';
+import { externalAccessCall, peekPlaylist, popPlaylist, tester, clearCurrentSong } from '../bot';
+import { youtubeVideoInfo } from './apiFunctions/youtube';
+import { SharedService } from './shared.service';
 
 /*import {NgModule} from '@angular/core';
 import {YouTubePlayerModule} from '@angular/youtube-player'; //npm i @angular/youtube-player
@@ -48,7 +50,7 @@ import { YouTubePlayerModule } from '@angular/youtube-player';
 export class AppComponent implements OnInit{
   title = 'homes';
 
-
+  clickEventsubscription:Subscription;
 
   paramsObject : ParamMap | null | undefined;
   accessToken : string | null | undefined;
@@ -80,9 +82,14 @@ export class AppComponent implements OnInit{
   endSeconds = 120;
   
 
-  constructor(private route: ActivatedRoute, private http: HttpClient){
+  constructor(private route: ActivatedRoute, private http: HttpClient, private sharedService:SharedService){
     //, private ytPlayerVars: YT.PlayerVars
+    this.clickEventsubscription=    this.sharedService.GetUpdateActiveSongHook().subscribe((value)=>{
+      this.updateActiveSong(value);})
   }
+
+
+
   private handleError(error: HttpErrorResponse) {
     if (error.status === 0) {
       // A client-side or network error occurred. Handle it accordingly.
@@ -175,11 +182,10 @@ export class AppComponent implements OnInit{
           //post based on retrieved information. I think?
           
           (async () => {
-            externalAccessCall();
+            externalAccessCall(this.sharedService);
           })();
 
           //Handling ytPlaylistInitialization
-        //  this.videoId = this.getYTVideoIDFromURL(popPlaylist());
 
         }
   );
@@ -189,31 +195,12 @@ export class AppComponent implements OnInit{
 
   }
   
-  getYTVideoIDFromURL(source:string){
-    var ytVideoIDFromSource = source;
-    const regex = /^.*watch\?v=([A-Za-z0-9]*)(&.*)?$/i;
 
-      //console.log('strCPY version: '+source.substring(source.indexOf('watch?v=')+8, source.indexOf('&')));
-
-
-
-      //this.videoId = ytVideoIDFromSource.substring(source.indexOf('watch?v=')+8, source.indexOf('&'));
-      //this.videoId = ytVideoIDFromSource.replace(regex, "$1");
-
-    return ytVideoIDFromSource.replace(regex, "$1");
-  }
-
-  testFunction(){
-    console.log('https://www.youtube.com/watch?v=ocQ7sFFxOh4&pp=ygUJaW4gZmxhbWVz');
-    console.log(this.getYTVideoIDFromURL('https://www.youtube.com/watch?v=ocQ7sFFxOh4&pp=ygUJaW4gZmxhbWVz'));
-    this.videoId = this.getYTVideoIDFromURL('https://www.youtube.com/watch?v=ocQ7sFFxOh4&pp=ygUJaW4gZmxhbWVz');
-    
-    
-    
-  }
 
   ngOnInit() {
     //this.ytPlayerVars.enablejsapi = 1;
+
+
     if (!this.apiLoaded) {
       const tag = document.createElement('script');
       tag.src = 'https://www.youtube.com/iframe_api';
@@ -221,6 +208,9 @@ export class AppComponent implements OnInit{
       this.apiLoaded = true;
       
     }
+
+    //tester(this.sharedService);
+
     this.route.queryParamMap
       .subscribe((params) => {
         this.paramsObject = { ...params.keys, ...params };
@@ -232,8 +222,6 @@ export class AppComponent implements OnInit{
         }
       }
     );
-    //this.ytTestIfVideoExists('test1234');
-    //this.testFunction(); 
   }
 
   //TestIfPageExists before loading
@@ -267,17 +255,20 @@ export class AppComponent implements OnInit{
     console.log("OnStateChange: " +event.data.toString());
     if (event.data.toString() == "0"){ //0=Video End? 1=play 2=pause? 3=load?  //-1 error? //5 loaded and ready?
       //pop ytList and order the next song?
-
-      this.videoId = this.getYTVideoIDFromURL(this.optionalInjectBackUpPlaylist(popPlaylist()));
-
+      var feedback = this.ytAttemptPlayNextSong();
+      if (feedback == ""){
+        clearCurrentSong();
+      }
     }
     else if (event.data.toString() == "5"){
       event.target.playVideo();
     }
   }
 
-  optionalInjectBackUpPlaylist(nextTrack:string){
-    if (nextTrack == ""){
+  optionalInjectBackUpPlaylist(nextTrack:youtubeVideoInfo){
+    console.log("next track is:");
+    console.log(nextTrack);
+    if (nextTrack.songTitle == ""){
       //pull from backup playlist                                                                                                   //INJECT BACKUP PLAYLIST CODE HERE
 
     }
@@ -291,11 +282,22 @@ export class AppComponent implements OnInit{
     //pop ytList and order the next song? on error?
     if (event.data.toString() == "150"){
       //SEND MESSAGE AS BOT :   "Skipping video X123, it can't be run because reasons."
-      var tempString = this.getYTVideoIDFromURL(this.optionalInjectBackUpPlaylist(popPlaylist()));
-      console.log('attempting to pop the next video in as '+ tempString);
-      this.videoId = tempString;
+      this.ytAttemptPlayNextSong();
     }
 
+  }
+
+  ytAttemptPlayNextSong(){
+
+    //console.log('Going to next video');
+    if (peekPlaylist() != undefined){
+      this.videoId = this.optionalInjectBackUpPlaylist(popPlaylist()).videoId;
+      return this.videoId;
+    }
+    else{
+      console.log('Playlist is empty you fool!');
+      return "";
+    }
   }
 
   ytBackButton(){
@@ -304,12 +306,16 @@ export class AppComponent implements OnInit{
   }
 
   ytNextButton(){
-    console.log('Going to next video');
-    this.videoId = this.getYTVideoIDFromURL(this.optionalInjectBackUpPlaylist(popPlaylist()));
+    this.ytAttemptPlayNextSong();
   }
 
   ytOnApiChange(event:YT.PlayerEvent){
     console.log("OnApiChange: " + event.target.getPlayerState().toString());
+  }
+  
+  updateActiveSong(ytVI:youtubeVideoInfo){
+    //newTrack:youtubeVideoInfo
+    this.videoId = ytVI.videoId;
   }
   
 
