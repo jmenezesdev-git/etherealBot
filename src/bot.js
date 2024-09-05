@@ -151,6 +151,52 @@ export async function externalAccessCall(sentsharedService){
 
 }
 
+export async function tryTwitchUserTokenRefresh(){
+
+	
+	CLIENT_ID = environment.CLIENT_ID;
+	CLIENT_SECRETID = environment.CLIENT_SECRETID;
+	BOT_USER_ID = localStorage.getItem('etherealBotBotUserId');
+	CHAT_CHANNEL_USER_ID = localStorage.getItem('etherealBotChatChannelUserId');
+	STREAM_ACCOUNT_NAME = localStorage.getItem('etherealBotStreamAccountName');
+	OAUTH_TOKEN = localStorage.getItem('etherealBotTwitchOAuthAccessToken');
+	console.log(localStorage.getItem('etherealBotTwitchRefreshToken'));
+
+	const response = await fetch('https://id.twitch.tv/oauth2/token', {
+		method: 'POST',
+		headers: {
+			"Content-Type": "application/json",
+			"Accept": "application/json",
+		},
+
+		body: JSON.stringify({"client_id": CLIENT_ID, "client_secret": CLIENT_SECRETID, "grant_type": "refresh_token", "refresh_token": localStorage.getItem('etherealBotTwitchRefreshToken')})
+
+
+	});
+
+	if (response.status != 200) {
+		let data = await response.json();
+		console.error("Token is not valid. /oauth2/token returned status code " + response.status);
+		console.error(data);
+		return data;
+	}
+
+	const json = await response.json();
+	//let APP_OAUTH_TOKEN = json.access_token;
+	console.log(json);
+	environment.TwitchOAuthAccessToken = json.access_token;
+	localStorage.setItem('etherealBotTwitchOAuthAccessToken', json.access_token);
+	localStorage.setItem('etherealBotTwitchRefreshToken', json.refresh_token);
+	console.log(json.refresh_token);
+	//console.log("OAUTH_TOKEN = " + OAUTH_TOKEN);
+	//;console.log(response.toString());
+	const websocketClient = startWebSocketClient();
+	return '';
+
+
+}
+
+
 //Unordered Top 10 VNs
 //Umineko
 //FSN
@@ -253,7 +299,8 @@ export async function getAdministrativeUserIDs(){
 	//I think we are assigning correctly. 403 is from bot's permissions on main account 
 	if (json.data[0].display_name == BOT_ACCOUNT_NAME){
 		BOT_USER_ID = json.data[0].id;
-		
+		localStorage.setItem('etherealBotBotUserId', BOT_USER_ID);
+
 		console.log('Assigned sender_id as: ' + json.data[1].display_name);
 	}
 	const ownIDresponse = await fetch('https://api.twitch.tv/helix/users'  , {
@@ -274,6 +321,10 @@ export async function getAdministrativeUserIDs(){
 	console.log(json2.data[0].display_name);
 	CHAT_CHANNEL_USER_ID = json2.data[0].id;
 	STREAM_ACCOUNT_NAME = json2.data[0].display_name;	
+	localStorage.setItem('etherealBotChatChannelUserId', CHAT_CHANNEL_USER_ID);
+	localStorage.setItem('etherealBotStreamAccountName', STREAM_ACCOUNT_NAME);
+	localStorage.setItem('etherealBotProfileImageUrl', json2.data[0].profile_image_url)
+	//json2.data[0].
 	console.log('Assigned broadcaster_id as: ' + json2.data[0].display_name);
 
 	//console.log(json);

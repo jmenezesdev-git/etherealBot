@@ -4,7 +4,7 @@ import {ActivatedRoute, ParamMap, RouterLink, RouterOutlet} from '@angular/route
 import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams, HttpClientModule, HttpParameterCodec  } from '@angular/common/http';
 import { catchError, throwError, Subscription } from 'rxjs';
 import { environment } from './environment';
-import { externalAccessCall, peekPlaylist, popPlaylist, tester, clearCurrentSong } from '../bot';
+import { externalAccessCall, peekPlaylist, popPlaylist, tester, clearCurrentSong, tryTwitchUserTokenRefresh } from '../bot';
 import { youtubeVideoInfo } from './apiFunctions/youtube';
 import { SharedService } from './shared.service';
 
@@ -66,6 +66,7 @@ export class AppComponent implements OnInit{
   videoId = 'QIZ9aZD6vs0';// 'ZXZZZZZZZ';
   height = 200;
   width = 400;
+  loggedIntoTwitch = false;
 
 
   spanStyle = {'background-color' : 'rgb(255, 0, 0)'};
@@ -153,6 +154,7 @@ export class AppComponent implements OnInit{
             this.accessToken = (value as MyObject).access_token;
             if(this.accessToken !== undefined){
               environment.TwitchOAuthAccessToken = this.accessToken;
+              localStorage.setItem('etherealBotTwitchOAuthAccessToken', this.accessToken);
             }
           }
           if(value.hasOwnProperty('expires_in')){
@@ -165,6 +167,7 @@ export class AppComponent implements OnInit{
             this.refresh_token = (value as MyObject).refresh_token;
             if(this.refresh_token !== undefined){
               environment.TwitchOAuthRefreshToken = this.refresh_token;
+              localStorage.setItem('etherealBotTwitchRefreshToken', this.refresh_token);
             }
           }
           if(value.hasOwnProperty('scope')){
@@ -185,6 +188,14 @@ export class AppComponent implements OnInit{
             externalAccessCall(this.sharedService);
           })();
 
+          console.log('etherealBotBotUserId = ' + localStorage.getItem('etherealBotBotUserId'));
+          console.log('etherealBotChatChannelUserId = ' + localStorage.getItem('etherealBotChatChannelUserId'));
+          console.log('etherealBotStreamAccountName = ' + localStorage.getItem('etherealBotStreamAccountName'));
+          console.log('etherealBotTwitchOAuthAccessToken = ' + localStorage.getItem('etherealBotTwitchOAuthAccessToken'));
+          console.log('etherealBotTwitchRefreshToken = ' + localStorage.getItem('etherealBotTwitchRefreshToken'));
+          console.log('etherealBotProfileImageUrl = ' + localStorage.getItem('etherealBotProfileImageUrl'));
+          
+
           //Handling ytPlaylistInitialization
 
         }
@@ -197,7 +208,7 @@ export class AppComponent implements OnInit{
   
 
 
-  ngOnInit() {
+  async ngOnInit() {
     //this.ytPlayerVars.enablejsapi = 1;
 
 
@@ -210,18 +221,41 @@ export class AppComponent implements OnInit{
     }
 
     //tester(this.sharedService);
+    if(localStorage.getItem('etherealBotStreamAccountName')){ //I've logged in before  //////////XXXXXXXXX
+      //try refresh
+      if(await tryTwitchUserTokenRefresh() != ''){
+        this.route.queryParamMap 
+          .subscribe((params) => {
+            this.paramsObject = { ...params.keys, ...params };
+            if(params.get('code')){
+              console.log(params.get('code'));
+              this.responseToTwitchCodeRedirect(params.get('code'));
+              
+            }
+          }
+        );
 
-    this.route.queryParamMap
-      .subscribe((params) => {
-        this.paramsObject = { ...params.keys, ...params };
-        if(params.get('code')){
-          console.log(params.get('code'));
-          //run the authentication post?
-          this.responseToTwitchCodeRedirect(params.get('code'));
-          
-        }
       }
-    );
+      else{
+        ///replace Connect to twitch with Image & text
+        this.loggedIntoTwitch = true;
+        //Create dropdown menu for logging out.
+      }
+
+    }
+    else{
+      this.route.queryParamMap //Vanilla Route - I've never logged in before
+        .subscribe((params) => {
+          this.paramsObject = { ...params.keys, ...params };
+          if(params.get('code')){
+            console.log(params.get('code'));
+            //run the authentication post?
+            this.responseToTwitchCodeRedirect(params.get('code'));
+            
+          }
+        }
+      );
+    }
   }
 
   //TestIfPageExists before loading
