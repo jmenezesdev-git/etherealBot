@@ -49,8 +49,10 @@
             "inlineStyleLanguage": "scss",
             "assets": ["src/favicon.ico", "src/assets"],
             "styles": [
+              "@angular/material/prebuilt-themes/magenta-violet.css",
               "node_modules/bootstrap/dist/css/bootstrap.min.css",
-              "src/styles.css"],
+              "src/styles.css"
+            ],
             "scripts": []
           },
           "configurations": {

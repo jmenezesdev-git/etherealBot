@@ -1,4 +1,4 @@
-import { first, queue } from 'rxjs';
+import { first, queue, share } from 'rxjs';
 import {environment} from './app/environment';
 import { getFirstYoutubeResult, getYoutubeVideoByID, youtubeVideoInfo } from './app/apiFunctions/youtube';
 import {AppComponent} from './app/app.component';
@@ -11,6 +11,11 @@ import { SharedService } from './app/shared.service';
 
 
 /*
+Today's Stream goals:
+	Finish logout button functionality
+	Drag & Drop to rearrange song list
+
+
 
 COMPLETED
 #	Basic OAuth
@@ -147,15 +152,25 @@ export async function externalAccessCall(sentsharedService){
 	await getAppOAUTH_TOKEN();
 	await getAdministrativeUserIDs();
 	// Start WebSocket client and register handlers
-	const websocketClient = startWebSocketClient();
 
 }
+export async function initializeWebSocket(sentsharedService){
+	CLIENT_ID = environment.CLIENT_ID;
+	CLIENT_SECRETID = environment.CLIENT_SECRETID;
+	sharedService = sentsharedService;
+	BOT_USER_ID = localStorage.getItem('etherealBotBotUserId');
+	CHAT_CHANNEL_USER_ID = localStorage.getItem('etherealBotChatChannelUserId');
+	STREAM_ACCOUNT_NAME = localStorage.getItem('etherealBotStreamAccountName');
+	OAUTH_TOKEN = localStorage.getItem('etherealBotTwitchOAuthAccessToken');
+	const websocketClient = startWebSocketClient();
+}
 
-export async function tryTwitchUserTokenRefresh(){
+export async function tryTwitchUserTokenRefresh(sentSharedService){
 
 	
 	CLIENT_ID = environment.CLIENT_ID;
 	CLIENT_SECRETID = environment.CLIENT_SECRETID;
+	sharedService = sentSharedService;
 	BOT_USER_ID = localStorage.getItem('etherealBotBotUserId');
 	CHAT_CHANNEL_USER_ID = localStorage.getItem('etherealBotChatChannelUserId');
 	STREAM_ACCOUNT_NAME = localStorage.getItem('etherealBotStreamAccountName');
@@ -330,6 +345,8 @@ export async function getAdministrativeUserIDs(){
 	//console.log(json);
 	//console.log("The Chat channel user id = " + CHAT_CHANNEL_USER_ID);
 	//console.log("The Bot user id = " + BOT_USER_ID);
+	
+	console.log('etherealBotProfileImageUrl from getAdministrativeUserIDs is: ' + localStorage.getItem('etherealBotProfileImageUrl'));
 	//console.log(botIDresponse.toString());
 }
 
@@ -456,6 +473,8 @@ export function popPlaylist(){
 	// if (index > -1) {
 	// 	playlistArray = playlistArray.splice(index, 1);
 	// }
+
+	
 	var firstTrack = playlistArray.shift();
 	currentSong = firstTrack;
 	if (playlistArray.length == 0 && firstTrack != undefined && firstTrack != null){
@@ -473,8 +492,8 @@ export function popPlaylist(){
 }
 
 
-export function pushPlaylist(message){
-	
+export function pushPlaylist(message, sharedServiceArg){
+		sharedService = sharedServiceArg;
 		addSongToQueue(message, STREAM_ACCOUNT_NAME);
 }
 
@@ -530,9 +549,20 @@ export function tester(SS){
 	//console.log(sumActivePlaylistTime());
 	//x = new SharedService;
 	SS.sendUpdateActiveSongHook(popPlaylist());
-	
+	if(SS == null){
+		console.log("SS is null");
+	}
+	if(SS == undefined){
+		console.log("SS is undefined");
+	} else if (SS != undefined && SS != null){
+		console.log("SS is defined");
+
+	}
+	//SS.sendUpdateDragDropSongHook("playlistArrayTest");
 
 }
+
+
 
 function sumActivePlaylistTime(){
 //time from youtube videos is of the format:  P#DT#H#M#S where # is a series of numbers and #DT, #H, #M are optional depending on video length
@@ -656,6 +686,13 @@ async function addSongToQueue(songArg, sender){
 		
 		sharedService.sendUpdateActiveSongHook(popPlaylist());
 	}
+
+	if (currentSong != undefined && playlistArray.length > 0 && playlistArray != null && playlistArray != undefined && playlistArray.length > 0){
+
+		//console.log('playlistArray before sending DragDropSongHook update');
+		//console.log(playlistArray);
+		sharedService.sendUpdateDragDropSongHook(playlistArray);
+	}	
 
 
 

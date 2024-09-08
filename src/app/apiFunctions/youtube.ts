@@ -72,7 +72,7 @@ export async function getYoutubeVideoByID(ytVI:youtubeVideoInfo){
 
 
 	const json = await response.json();
-	console.log (json);
+	// console.log (json);
 	if (json.hasOwnProperty("items")){
 		if (json.items[0].hasOwnProperty("snippet") && ytVI.songTitle == "" ){
 			if (json.items[0].snippet.hasOwnProperty("title")){
@@ -131,10 +131,14 @@ export class youtubeVideoInfo{
 	videoId = "";
 	//Youtube video request information
 	requestedBy = "";
+	position = -1;
 
 	constructor(videoId: string, songTitle: string, channelTitle: string){
 		this.videoId = videoId;
 		this.songTitle = songTitle;
 		this.channelTitle = channelTitle;
 	}
+
+	
 }
+

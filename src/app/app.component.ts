@@ -1,10 +1,10 @@
 import {Component, OnInit, ViewChild, ViewEncapsulation} from '@angular/core';
 import {HomeComponent} from './home/home.component';
-import {ActivatedRoute, ParamMap, RouterLink, RouterOutlet} from '@angular/router';
+import {ActivatedRoute, ParamMap, Router, RouterLink, RouterOutlet} from '@angular/router';
 import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams, HttpClientModule, HttpParameterCodec  } from '@angular/common/http';
-import { catchError, throwError, Subscription } from 'rxjs';
+import { catchError, throwError, Subscription, elementAt } from 'rxjs';
 import { environment } from './environment';
-import { externalAccessCall, peekPlaylist, popPlaylist, tester, clearCurrentSong, tryTwitchUserTokenRefresh } from '../bot';
+import { externalAccessCall, peekPlaylist, popPlaylist, tester, clearCurrentSong, tryTwitchUserTokenRefresh, initializeWebSocket, getPlaylist } from '../bot';
 import { youtubeVideoInfo } from './apiFunctions/youtube';
 import { SharedService } from './shared.service';
 
@@ -24,6 +24,10 @@ import { FormsModule } from '@angular/forms';
 //import { AppComponent } from './app.component';
 import { YouTubePlayerModule } from '@angular/youtube-player';
 
+import {CdkDragDrop, CdkDropList, CdkDrag, moveItemInArray} from '@angular/cdk/drag-drop';
+import {MatTable, MatTableModule} from '@angular/material/table';
+import {MatIconModule} from '@angular/material/icon';
+
 // @NgModule({
 //   imports: [BrowserModule, FormsModule, YouTubePlayerModule],
 //   declarations: [AppComponent],
@@ -31,11 +35,58 @@ import { YouTubePlayerModule } from '@angular/youtube-player';
 // })
 
 // BrowserModule,
+export interface youtubeVideoInfoDisplay {
+  position: string;
+  videoId: string;
+  duration: string;
+  requestedBy: string;
+  songTitle: string;
+}
+
+
+export const DATAARR: youtubeVideoInfo[] = [
+  // export const DATAARR: youtubeVideoInfoDisplay[] = [
+  // {position: 1, rejectionReason: "", videoId:"gXCI8vJTjqA", duration: "PT5M56S", uploadStatus: "processed", failureReason: "", privacyStatus: "", channelTitle: "", embeddable: true, license: "youtube", publicStatsViewable:true, requestedBy:"etherealAffairs", songTitle:"【公式】【東方Vocal】幽閉サテライト / 華鳥風月/歌唱senya【FullMV】（原曲：六十年目の東方裁判 ～ Fate of Sixty Years）"},
+  // {position: 2, rejectionReason: "", videoId:"gXCI8vJTjqA", duration: "PT5M56S", uploadStatus: "processed", failureReason: "", privacyStatus: "", channelTitle: "", embeddable: true, license: "youtube", publicStatsViewable:true, requestedBy:"testUser", songTitle:"【公式】【東方Vocal】幽閉サテライト / 華鳥風月/歌唱senya【FullMV】（原曲：六十年目の東方裁判 ～ Fate of Sixty Years）"},
+  // {position: "1", videoId:"gXCI8vJTjqA", duration: "PT5M56S", requestedBy:"etherealAffairs", songTitle:"【公式】【東方Vocal】幽閉サテライト / 華鳥風月/歌唱senya【FullMV】（原曲：六十年目の東方裁判 ～ Fate of Sixty Years）"},
+  // {position: "2", videoId:"gXCI8vJTjqA", duration: "PT5M56S", requestedBy:"TestUser", songTitle:"【公式】【東方Vocal】幽閉サテライト / 華鳥風月/歌唱senya【FullMV】（原曲：六十年目の東方裁判 ～ Fate of Sixty Years）"},];
+]; 
+export interface PeriodicElement {
+  name: string;
+  position: number;
+  weight: number;
+  symbol: string;
+  quantity: number;
+}
+export const ELEMENT_DATA: PeriodicElement[] = [
+  {position: 1, name: 'Hydrogen', weight: 1.0079, symbol: 'H', quantity: 100},
+  {position: 2, name: 'Helium', weight: 4.0026, symbol: 'He', quantity: 100},
+  {position: 3, name: 'Lithium', weight: 6.941, symbol: 'Li', quantity: 100},
+  {position: 4, name: 'Beryllium', weight: 9.0122, symbol: 'Be', quantity: 100},
+  {position: 5, name: 'Boron', weight: 10.811, symbol: 'B', quantity: 100},
+  {position: 6, name: 'Carbon', weight: 12.0107, symbol: 'C', quantity: 100},
+  {position: 7, name: 'Nitrogen', weight: 14.0067, symbol: 'N', quantity: 100},
+  {position: 8, name: 'Oxygen', weight: 15.9994, symbol: 'O', quantity: 100},
+  {position: 9, name: 'Fluorine', weight: 18.9984, symbol: 'F', quantity: 100},
+  {position: 10, name: 'Neon', weight: 20.1797, symbol: 'Ne', quantity: 100},
+]; 
+  // var ytVI = new youtubeVideoInfo("gXCI8vJTjqA", "", "");
+	// ytVI.channelTitle = "幽閉サテライト・少女フラクタル・幽閉カタルシス 公式チャンネル";
+	// ytVI.duration = "PT5M56S";
+	// ytVI.embeddable = true;
+	// ytVI.license = "youtube";
+	// ytVI.privacyStatus = "public";
+	// ytVI.publicStatsViewable = true;
+	// ytVI.requestedBy = "etherealAffairs";
+	// ytVI.songTitle = "【公式】【東方Vocal】幽閉サテライト / 華鳥風月/歌唱senya【FullMV】（原曲：六十年目の東方裁判 ～ Fate of Sixty Years）";
+	// ytVI.uploadStatus = "processed";
+	// ytVI.videoId = "gXCI8vJTjqA";
+
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [HomeComponent, RouterLink, RouterOutlet, HttpClientModule,  FormsModule, YouTubePlayerModule],
+  imports: [HomeComponent, RouterLink, RouterOutlet, HttpClientModule,  FormsModule, YouTubePlayerModule, CdkDropList, CdkDrag, MatTableModule, MatIconModule],
   templateUrl: './app.component.html',
   encapsulation: ViewEncapsulation.None,
   styleUrls: ['./app.component.css'],
@@ -50,7 +101,7 @@ import { YouTubePlayerModule } from '@angular/youtube-player';
 export class AppComponent implements OnInit{
   title = 'homes';
 
-  clickEventsubscription:Subscription;
+  // clickEventsubscription:Subscription;
 
   paramsObject : ParamMap | null | undefined;
   accessToken : string | null | undefined;
@@ -59,6 +110,7 @@ export class AppComponent implements OnInit{
   token_type: string | null | undefined;
   scope: Array<string> | undefined;
   tempString: string|null|undefined ="";
+  twProfilePic : string | null | undefined;
 
   @ViewChild('ytPlayer') player: any;
   apiLoaded = false;
@@ -67,28 +119,44 @@ export class AppComponent implements OnInit{
   height = 200;
   width = 400;
   loggedIntoTwitch = false;
+  connectTwitchVisibility = 'visible';
+  
 
 
   spanStyle = {'background-color' : 'rgb(255, 0, 0)'};
-
-  //"{'autoplay': 1}"
-
-  //ytPlayerVars : YT.PlayerVars | undefined;
-  //ytPlayerVars= {"autoplay": "1", "enablejsapi": "1"};
   ytPlayerVars = {'autoplay': 0, 'enablejsapi': 1};
-  //, "enablejsapi": 1
-
-  // enablejsapi=1
   startSeconds = 60;
   endSeconds = 120;
-  
 
-  constructor(private route: ActivatedRoute, private http: HttpClient, private sharedService:SharedService){
-    //, private ytPlayerVars: YT.PlayerVars
-    this.clickEventsubscription=    this.sharedService.GetUpdateActiveSongHook().subscribe((value)=>{
-      this.updateActiveSong(value);})
+  @ViewChild('table2', { static: true })
+  table2!: MatTable<youtubeVideoInfo>;
+
+  displayedColumns2: string[] = ['position', 'songname', 'duration', 'requestedby', 'videoid'];
+  dataSource2 = DATAARR;//!:youtubeVideoInfo[]; //| undefined;
+
+
+  drop2(event: CdkDragDrop<string>) {
+    if (this.dataSource2 != undefined){
+      const previousIndex = this.dataSource2.findIndex(d => d === event.item.data);
+
+      moveItemInArray(this.dataSource2, previousIndex, event.currentIndex);
+      this.table2.renderRows();
+    }
   }
 
+
+
+  constructor(private router: Router, private route: ActivatedRoute, private http: HttpClient, private sharedService:SharedService){
+    //, private ytPlayerVars: YT.PlayerVars
+    // this.clickEventsubscription = 
+
+    this.sharedService.GetUpdateActiveSongHook().subscribe((value)=>{
+      this.updateActiveSong(value);});
+    this.sharedService.GetUpdateDragDropSongHook().subscribe((value)=>{
+      this.updateDragDrop(value);
+    });
+
+  }
 
 
   private handleError(error: HttpErrorResponse) {
@@ -185,9 +253,22 @@ export class AppComponent implements OnInit{
           //post based on retrieved information. I think?
           
           (async () => {
-            externalAccessCall(this.sharedService);
+            await externalAccessCall(this.sharedService);
+
+
+          if (localStorage.getItem("etherealBotProfileImageUrl")!= null && localStorage.getItem("etherealBotProfileImageUrl") != undefined  ){
+            if (localStorage.getItem("etherealBotProfileImageUrl")?.toString() !=  ''){
+              this.loggedIntoTwitch = true;
+              this.connectTwitchVisibility = 'hidden';
+              this.twProfilePic = localStorage.getItem("etherealBotProfileImageUrl");
+            }
+          }
+
+
+            initializeWebSocket(this.sharedService);
           })();
 
+      
           console.log('etherealBotBotUserId = ' + localStorage.getItem('etherealBotBotUserId'));
           console.log('etherealBotChatChannelUserId = ' + localStorage.getItem('etherealBotChatChannelUserId'));
           console.log('etherealBotStreamAccountName = ' + localStorage.getItem('etherealBotStreamAccountName'));
@@ -209,9 +290,9 @@ export class AppComponent implements OnInit{
 
 
   async ngOnInit() {
-    //this.ytPlayerVars.enablejsapi = 1;
 
 
+// Youtube setup
     if (!this.apiLoaded) {
       const tag = document.createElement('script');
       tag.src = 'https://www.youtube.com/iframe_api';
@@ -220,10 +301,11 @@ export class AppComponent implements OnInit{
       
     }
 
-    //tester(this.sharedService);
+
+    
     if(localStorage.getItem('etherealBotStreamAccountName')){ //I've logged in before  //////////XXXXXXXXX
       //try refresh
-      if(await tryTwitchUserTokenRefresh() != ''){
+      if(await tryTwitchUserTokenRefresh(this.sharedService) != ''){
         this.route.queryParamMap 
           .subscribe((params) => {
             this.paramsObject = { ...params.keys, ...params };
@@ -239,6 +321,8 @@ export class AppComponent implements OnInit{
       else{
         ///replace Connect to twitch with Image & text
         this.loggedIntoTwitch = true;
+        this.connectTwitchVisibility = 'hidden';
+        this.twProfilePic = localStorage.getItem("etherealBotProfileImageUrl");
         //Create dropdown menu for logging out.
       }
 
@@ -251,11 +335,45 @@ export class AppComponent implements OnInit{
             console.log(params.get('code'));
             //run the authentication post?
             this.responseToTwitchCodeRedirect(params.get('code'));
+
+
+
+            console.log('attempting router stuff');
+            this.router.navigate([], {
+            queryParams: {
+                'code': null,
+                'scope': null,
+                'state': null,
+              },
+              queryParamsHandling: 'merge'
+            });
             
           }
         }
+        
       );
+      
     }
+    var dataTest:youtubeVideoInfo[] = [];
+    // tester(this.sharedService);
+    this.dataSource2 = dataTest;
+
+  }
+
+  twLogout(){
+    this.twProfilePic = "";
+    localStorage.setItem('etherealBotBotUserId', '');
+    localStorage.setItem('etherealBotChatChannelUserId', '');
+    localStorage.setItem('etherealBotStreamAccountName', '');
+    localStorage.setItem('etherealBotTwitchOAuthAccessToken', '');
+    localStorage.setItem('etherealBotTwitchRefreshToken', '');
+    localStorage.setItem('etherealBotProfileImageUrl', '');
+    environment.TwitchOAuthAccessToken = "";
+    environment.TwitchOAuthRefreshToken = "";
+    this.loggedIntoTwitch = false;
+    this.connectTwitchVisibility = 'visible'
+    
+    window.location.reload();
   }
 
   //TestIfPageExists before loading
@@ -349,10 +467,22 @@ export class AppComponent implements OnInit{
   
   updateActiveSong(ytVI:youtubeVideoInfo){
     //newTrack:youtubeVideoInfo
+    // console.log('running updateActiveSong');
     this.videoId = ytVI.videoId;
   }
   
+  updateDragDrop(ytVI:youtubeVideoInfo[]){
+    console.log('updateDragDrop'); 
+    console.log(ytVI);
 
+    ytVI.forEach((element, index)=> {
+      element.position = index + 1;
+    });
+
+    // this.dataSource2 = ytVI;
+    // :youtubeVideoInfo[]
+    this.dataSource2 = ytVI;
+  }
 
 ///To my understanding what we want to do for refresh tokens
 ///act as if things have not expired until we get a 401? error.
