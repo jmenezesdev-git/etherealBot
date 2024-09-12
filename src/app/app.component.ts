@@ -4,7 +4,7 @@ import {ActivatedRoute, ParamMap, Router, RouterLink, RouterOutlet} from '@angul
 import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams, HttpClientModule, HttpParameterCodec  } from '@angular/common/http';
 import { catchError, throwError, Subscription, elementAt } from 'rxjs';
 import { environment } from './environment';
-import { externalAccessCall, peekPlaylist, popPlaylist, tester, clearCurrentSong, tryTwitchUserTokenRefresh, initializeWebSocket, getPlaylist } from '../bot';
+import { externalAccessCall, peekPlaylist, popPlaylist, tester, clearCurrentSong, tryTwitchUserTokenRefresh, initializeWebSocket, getPlaylist, relocateItemInPlaylistArray, deletePlaylistAtLocation } from '../bot';
 import { youtubeVideoInfo } from './apiFunctions/youtube';
 import { SharedService } from './shared.service';
 
@@ -25,6 +25,9 @@ import { FormsModule } from '@angular/forms';
 import { YouTubePlayerModule } from '@angular/youtube-player';
 
 import {CdkDragDrop, CdkDropList, CdkDrag, moveItemInArray} from '@angular/cdk/drag-drop';
+import { CdkContextMenuTrigger, CdkMenuModule } from '@angular/cdk/menu';
+
+
 import {MatTable, MatTableModule} from '@angular/material/table';
 import {MatIconModule} from '@angular/material/icon';
 
@@ -51,25 +54,7 @@ export const DATAARR: youtubeVideoInfo[] = [
   // {position: "1", videoId:"gXCI8vJTjqA", duration: "PT5M56S", requestedBy:"etherealAffairs", songTitle:"【公式】【東方Vocal】幽閉サテライト / 華鳥風月/歌唱senya【FullMV】（原曲：六十年目の東方裁判 ～ Fate of Sixty Years）"},
   // {position: "2", videoId:"gXCI8vJTjqA", duration: "PT5M56S", requestedBy:"TestUser", songTitle:"【公式】【東方Vocal】幽閉サテライト / 華鳥風月/歌唱senya【FullMV】（原曲：六十年目の東方裁判 ～ Fate of Sixty Years）"},];
 ]; 
-export interface PeriodicElement {
-  name: string;
-  position: number;
-  weight: number;
-  symbol: string;
-  quantity: number;
-}
-export const ELEMENT_DATA: PeriodicElement[] = [
-  {position: 1, name: 'Hydrogen', weight: 1.0079, symbol: 'H', quantity: 100},
-  {position: 2, name: 'Helium', weight: 4.0026, symbol: 'He', quantity: 100},
-  {position: 3, name: 'Lithium', weight: 6.941, symbol: 'Li', quantity: 100},
-  {position: 4, name: 'Beryllium', weight: 9.0122, symbol: 'Be', quantity: 100},
-  {position: 5, name: 'Boron', weight: 10.811, symbol: 'B', quantity: 100},
-  {position: 6, name: 'Carbon', weight: 12.0107, symbol: 'C', quantity: 100},
-  {position: 7, name: 'Nitrogen', weight: 14.0067, symbol: 'N', quantity: 100},
-  {position: 8, name: 'Oxygen', weight: 15.9994, symbol: 'O', quantity: 100},
-  {position: 9, name: 'Fluorine', weight: 18.9984, symbol: 'F', quantity: 100},
-  {position: 10, name: 'Neon', weight: 20.1797, symbol: 'Ne', quantity: 100},
-]; 
+
   // var ytVI = new youtubeVideoInfo("gXCI8vJTjqA", "", "");
 	// ytVI.channelTitle = "幽閉サテライト・少女フラクタル・幽閉カタルシス 公式チャンネル";
 	// ytVI.duration = "PT5M56S";
@@ -86,7 +71,7 @@ export const ELEMENT_DATA: PeriodicElement[] = [
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [HomeComponent, RouterLink, RouterOutlet, HttpClientModule,  FormsModule, YouTubePlayerModule, CdkDropList, CdkDrag, MatTableModule, MatIconModule],
+  imports: [HomeComponent, RouterLink, RouterOutlet, HttpClientModule,  FormsModule, YouTubePlayerModule, CdkDropList, CdkDrag, MatTableModule, MatIconModule, CdkMenuModule ],
   templateUrl: './app.component.html',
   encapsulation: ViewEncapsulation.None,
   styleUrls: ['./app.component.css'],
@@ -131,18 +116,27 @@ export class AppComponent implements OnInit{
   @ViewChild('table2', { static: true })
   table2!: MatTable<youtubeVideoInfo>;
 
-  displayedColumns2: string[] = ['position', 'songname', 'duration', 'requestedby', 'videoid'];
+  displayedColumns2: string[] = ['position', 'songname', 'duration', 'requestedby', 'channeltitle'];
   dataSource2 = DATAARR;//!:youtubeVideoInfo[]; //| undefined;
 
+
+  rowDelete(ytVI: youtubeVideoInfo){
+    // event: CdkContextMenuTrigger
+    //console.log()
+    console.log(ytVI);
+    deletePlaylistAtLocation(ytVI);
+  }
 
   drop2(event: CdkDragDrop<string>) {
     if (this.dataSource2 != undefined){
       const previousIndex = this.dataSource2.findIndex(d => d === event.item.data);
 
-      moveItemInArray(this.dataSource2, previousIndex, event.currentIndex);
-      this.table2.renderRows();
+      //this.dataSource2[previousIndex].position = event.currentIndex + 1;
+      relocateItemInPlaylistArray(previousIndex, event.currentIndex);
+      //this.table2.renderRows(); This function redraws the table rows
     }
   }
+
 
 
 
@@ -355,8 +349,8 @@ export class AppComponent implements OnInit{
       
     }
     var dataTest:youtubeVideoInfo[] = [];
-    // tester(this.sharedService);
     this.dataSource2 = dataTest;
+    tester(this.sharedService);
 
   }
 
@@ -472,16 +466,17 @@ export class AppComponent implements OnInit{
   }
   
   updateDragDrop(ytVI:youtubeVideoInfo[]){
-    console.log('updateDragDrop'); 
-    console.log(ytVI);
+    //console.log('updateDragDrop'); 
+    //console.log(ytVI);
 
+    //setting mandatory values for display purposes only. SHOULD NEVER IMPACT underlying data 
     ytVI.forEach((element, index)=> {
       element.position = index + 1;
+      element.setShortRealTime();
     });
 
-    // this.dataSource2 = ytVI;
-    // :youtubeVideoInfo[]
     this.dataSource2 = ytVI;
+    this.table2.renderRows();
   }
 
 ///To my understanding what we want to do for refresh tokens

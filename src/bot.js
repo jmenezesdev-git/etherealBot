@@ -3,6 +3,7 @@ import {environment} from './app/environment';
 import { getFirstYoutubeResult, getYoutubeVideoByID, youtubeVideoInfo } from './app/apiFunctions/youtube';
 import {AppComponent} from './app/app.component';
 import { SharedService } from './app/shared.service';
+import { moveItemInArray } from '@angular/cdk/drag-drop';
 
 
 
@@ -11,9 +12,7 @@ import { SharedService } from './app/shared.service';
 
 
 /*
-Today's Stream goals:
-	Finish logout button functionality
-	Drag & Drop to rearrange song list
+Today's goals:
 
 
 
@@ -29,22 +28,28 @@ COMPLETED
 #	!xsong 				///Indicates currently playing song information
 	!xwrongsong			///removes users latest song from queue
 
-#	= High priority
-WIP = Work in Progress
-L	= Low Priority
-
-
-
-URGENT:	youtube search incomplete - app.component.ts will not work with new object
-NEXT: xsr change to youtube search return first result, xsr provides feedback as to remaining time and newly added songname
-THEN:	
-Frontend Queue interface
 #	Drag & Drop interface to reorder?
 	List includes the following:
 		Video/Song Name
 		Requested By
 		Duration
 		Option to delete from queue
+Cookies
+#	Remember my login
+	NEED TO CHANGE OAUTH TOKEN GENERATION TO BE OPTIONAL/OCCASIONAL	
+	
+#	= High priority
+WIP = Work in Progress
+L	= Low Priority
+
+
+
+URGENT:	
+NEXT: xsr change to youtube search return first result, xsr provides feedback as to remaining time and newly added songname
+THEN:	
+Frontend Queue interface
+#	Drag & Drop interface to reorder?
+	List includes the following:
 		Option to add to default Queue
 Frontend Settings interface
 #	Length Limit
@@ -66,9 +71,7 @@ L	!xvoteskip			///initiates vote to skip current song. resets upon hitting a new
 L	!lastsong<optional>	///Get song information of nth past song, indicates total past song count
 						///resets on what, login? 12h?
 L	!xAddDef			///Mod only adds to default playlist
-Cookies
-#	Remember my login
-	NEED TO CHANGE OAUTH TOKEN GENERATION TO BE OPTIONAL/OCCASIONAL	
+
 Database
 	Remember my playlists & settings outside of cookies
 	mongodb for the lulz?
@@ -175,7 +178,7 @@ export async function tryTwitchUserTokenRefresh(sentSharedService){
 	CHAT_CHANNEL_USER_ID = localStorage.getItem('etherealBotChatChannelUserId');
 	STREAM_ACCOUNT_NAME = localStorage.getItem('etherealBotStreamAccountName');
 	OAUTH_TOKEN = localStorage.getItem('etherealBotTwitchOAuthAccessToken');
-	console.log(localStorage.getItem('etherealBotTwitchRefreshToken'));
+	//console.log(localStorage.getItem('etherealBotTwitchRefreshToken'));
 
 	const response = await fetch('https://id.twitch.tv/oauth2/token', {
 		method: 'POST',
@@ -198,11 +201,11 @@ export async function tryTwitchUserTokenRefresh(sentSharedService){
 
 	const json = await response.json();
 	//let APP_OAUTH_TOKEN = json.access_token;
-	console.log(json);
+	//console.log(json);
 	environment.TwitchOAuthAccessToken = json.access_token;
 	localStorage.setItem('etherealBotTwitchOAuthAccessToken', json.access_token);
 	localStorage.setItem('etherealBotTwitchRefreshToken', json.refresh_token);
-	console.log(json.refresh_token);
+	//console.log(json.refresh_token);
 	//console.log("OAUTH_TOKEN = " + OAUTH_TOKEN);
 	//;console.log(response.toString());
 	const websocketClient = startWebSocketClient();
@@ -497,6 +500,13 @@ export function pushPlaylist(message, sharedServiceArg){
 		addSongToQueue(message, STREAM_ACCOUNT_NAME);
 }
 
+export function deletePlaylistAtLocation(ytVideoInfo){
+
+	console.log('Removed:' + playlistArray.splice(ytVideoInfo.position -1, 1));
+	console.log(sharedService);
+	sharedService.sendUpdateDragDropSongHook(playlistArray);
+}
+
 export function peekPlaylist(){
 	return peekPlaylistN(0);
 }
@@ -558,6 +568,35 @@ export function tester(SS){
 		console.log("SS is defined");
 
 	}
+	var ytVI = new youtubeVideoInfo("W3q8Od5qJio", "", "");
+	ytVI.channelTitle = "Rammstein Official";
+	ytVI.duration = "PT3M56S";
+	ytVI.embeddable = true;
+	ytVI.license = "youtube";
+	ytVI.privacyStatus = "public";
+	ytVI.publicStatsViewable = true;
+	ytVI.requestedBy = "etherealAffairs";
+	ytVI.songTitle = "Rammstein - Du Hast (Official 4K Video)";
+	ytVI.uploadStatus = "processed";
+	ytVI.videoId = "W3q8Od5qJio";
+	playlistArray.push(ytVI);
+
+	var ytVI = new youtubeVideoInfo("WxnN05vOuSM", "", "");
+	ytVI.channelTitle = "Iron Maiden";
+	ytVI.duration = "PT4M52S";
+	ytVI.embeddable = true;
+	ytVI.license = "youtube";
+	ytVI.privacyStatus = "public";
+	ytVI.publicStatsViewable = true;
+	ytVI.requestedBy = "etherealAffairs";
+	ytVI.songTitle = "Iron Maiden - The Number Of The Beast (Official Video)";
+	ytVI.uploadStatus = "processed";
+	ytVI.videoId = "WxnN05vOuSM";
+	playlistArray.push(ytVI);
+
+
+	
+	SS.sendUpdateDragDropSongHook(playlistArray);
 	//SS.sendUpdateDragDropSongHook("playlistArrayTest");
 
 }
@@ -631,7 +670,7 @@ function sumActivePlaylistTime(){
 		}
 		if (seconds > 0){
 			if (returnString.length > 0){
-				returnString += " and ";
+				returnString += " and  ";
 			}
 			returnString += seconds + "secs";
 		}
@@ -793,7 +832,30 @@ async function registerEventSubListeners() {
 	}
 }
 
+export function relocateItemInPlaylistArray(currentIndex, newIndex){
+	playlistArray = playlistArrayMove(playlistArray, currentIndex, newIndex);
+	sharedService.sendUpdateDragDropSongHook(playlistArray);
+}
 
+function playlistArrayMove(array, currentIndex, newIndex){
+	if (newIndex >= array.length){
+		newIndex = array.length - 1;
+	}
+	else if (newIndex < 0){
+		newIndex = 0;
+	}
+	return arrayMove(array, currentIndex, newIndex);
+}
+
+function arrayMove(array, old_index, new_index) {
+    if (new_index >= array.length) {
+        var i = new_index - array.length + 1;
+        while (i--) {
+            array.push(undefined);
+        }
+    }
+    return array.toSpliced(new_index, 0, array.splice(old_index, 1)[0]);
+};
 
 /*
 

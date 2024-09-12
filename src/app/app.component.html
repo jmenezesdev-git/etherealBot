@@ -69,14 +69,18 @@
           </div>
       </div>
 <!-- Drag and Drop Table -->
-
+<div  >
 <mat-table #table2 [dataSource]="dataSource2" class="mat-elevation-z8" cdkDropList (cdkDropListDropped)="drop2($event)"
-  cdkDropListData="dataSource2">
+  cdkDropListData="dataSource2"> 
+
+  
+
+
   <ng-container matColumnDef="position" sticky>
     <mat-header-cell *matHeaderCellDef> No. </mat-header-cell>
     <mat-cell *matCellDef="let element">
-      <mat-icon class="example-drag-cursor">reorder</mat-icon>
-      <span>{{element.position}}</span>
+        <mat-icon class="example-drag-cursor">reorder</mat-icon>
+        <span>{{element.position}}</span>
     </mat-cell>
   </ng-container>
 
@@ -87,7 +91,7 @@
 
   <ng-container matColumnDef="duration">
     <mat-header-cell *matHeaderCellDef> Duration </mat-header-cell>
-    <mat-cell *matCellDef="let element"> {{element.duration}} </mat-cell>
+    <mat-cell *matCellDef="let element"> {{element.realTime}} </mat-cell>
   </ng-container>
 
   <ng-container matColumnDef="requestedby">
@@ -95,14 +99,25 @@
     <mat-cell *matCellDef="let element"> {{element.requestedBy}} </mat-cell>
   </ng-container>
 
-  <ng-container matColumnDef="videoid">
-    <mat-header-cell *matHeaderCellDef> videoId </mat-header-cell>
-    <mat-cell *matCellDef="let element">{{element.videoId}}</mat-cell>
+  <ng-container matColumnDef="channeltitle">
+    <mat-header-cell *matHeaderCellDef> Channel Title </mat-header-cell>
+    <mat-cell *matCellDef="let element">{{element.channelTitle}}</mat-cell>
   </ng-container>
 
   <mat-header-row *matHeaderRowDef="displayedColumns2"></mat-header-row>
-  <mat-row *matRowDef="let row; columns: displayedColumns2;" cdkDrag [cdkDragData]="row"></mat-row>
+  <mat-row *matRowDef="let row; columns: displayedColumns2;" cdkDrag [cdkDragData]="row"
+    [cdkContextMenuTriggerFor]="yt_drag_drop_context_menu"
+    [cdkContextMenuTriggerData]="{ytVI: row}"></mat-row>
 </mat-table>
+</div>
+
+<ng-template #yt_drag_drop_context_menu let-ytVI='ytVI'>
+  <!--   -->
+  <div class="yt-drag-drop-context-menu" cdkMenu>
+    <!-- yt-drag-drop-context-menu-item -->
+    <button (click)="rowDelete(ytVI)" class="eth-context-menu-button eth-text-light-gray" cdkMenuItem>Remove From Queue</button>
+  </div>
+</ng-template>
 
 
     </div>

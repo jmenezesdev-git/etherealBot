@@ -132,6 +132,7 @@ export class youtubeVideoInfo{
 	//Youtube video request information
 	requestedBy = "";
 	position = -1;
+	realTime = "";
 
 	constructor(videoId: string, songTitle: string, channelTitle: string){
 		this.videoId = videoId;
@@ -139,6 +140,64 @@ export class youtubeVideoInfo{
 		this.channelTitle = channelTitle;
 	}
 
+	setShortRealTime(){
+		this.realTime = this.getShortTime();
+	}
+
+	getShortTime(){
+		var days = 0;
+		var hours = 0;
+		var minutes = 0;
+		var seconds = 0;
+		const regexp = /PT((\d+)DT)?((\d+)H)?((\d+)M)?(\d+)S/g;
+
+		if (this.duration != null && this.duration != undefined && this.duration.length > 0){
+			let matches = this.duration.matchAll(regexp);
+			for (const match of matches) {
+				if (match.length > 7){
+					if(match[2] != undefined){
+						days += Number(match[2]);
+					}
+					if (match[4] != undefined){
+						hours += Number(match[4]);
+					}
+					if (match[6] != undefined){
+						minutes += Number(match[6]);
+					}
+					if (match[7] != undefined){
+						seconds += Number(match[7]);
+					}
+				}
+			}
+			
+			var returnString = "";
+			if (days > 0){
+				returnString += days + " d";
+			}
+			if (hours > 0){
+				if (returnString.length > 0){
+					returnString += " ";
+				}
+				returnString += hours + "h";
+			}
+			if (minutes > 0){
+				if (returnString.length > 0){
+					returnString += " ";
+				}
+				returnString += minutes + "m";
+			}
+			if (seconds > 0){
+				if (returnString.length > 0){
+					returnString += " ";
+				}
+				returnString += seconds + "s";
+			}
+			return returnString;
+
+		}
+
+		return "0 seconds";
+	}
 	
 }
 
