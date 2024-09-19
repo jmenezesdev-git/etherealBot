@@ -15,7 +15,6 @@ import { moveItemInArray } from '@angular/cdk/drag-drop';
 Today's goals:
 
 
-
 COMPLETED
 #	Basic OAuth
 #	Twitch Connection
@@ -71,10 +70,15 @@ L	!xvoteskip			///initiates vote to skip current song. resets upon hitting a new
 L	!lastsong<optional>	///Get song information of nth past song, indicates total past song count
 						///resets on what, login? 12h?
 L	!xAddDef			///Mod only adds to default playlist
-
+Security
+	use dotenv and move environment variables there.
+Backend Server
+#	Separate backend server
+#	Access database from backend server
+	Oauth from backend server. How is this possible if it forces front-end logins?
 Database
-	Remember my playlists & settings outside of cookies
-	mongodb for the lulz?
+#	Remember my playlists & settings outside of cookies
+#	mongodb for the lulz?
 Ai Chatbot Integration
 L	Your favorite waifu in chat
 Test possibility for automated redeems via channel points
@@ -165,6 +169,7 @@ export async function initializeWebSocket(sentsharedService){
 	CHAT_CHANNEL_USER_ID = localStorage.getItem('etherealBotChatChannelUserId');
 	STREAM_ACCOUNT_NAME = localStorage.getItem('etherealBotStreamAccountName');
 	OAUTH_TOKEN = localStorage.getItem('etherealBotTwitchOAuthAccessToken');
+	initializeSubscribers();
 	const websocketClient = startWebSocketClient();
 }
 
@@ -208,12 +213,52 @@ export async function tryTwitchUserTokenRefresh(sentSharedService){
 	//console.log(json.refresh_token);
 	//console.log("OAUTH_TOKEN = " + OAUTH_TOKEN);
 	//;console.log(response.toString());
+	initializeSubscribers();
 	const websocketClient = startWebSocketClient();
 	return '';
 
 
 }
 
+
+function initializeSubscribers(){
+	sharedService.GetUpdateActiveSongHook().subscribe((value)=>{
+		updateActiveSongBackend(value);});
+	sharedService.GetUpdateDragDropSongHook().subscribe((value)=>{
+		updateSongPlaylistBackend(value);
+	});
+}
+
+async function updateActiveSongBackend(value){ //single YTVI
+	console.log('value in updateActiveSongBackend');
+	console.log(value);
+	let response = await fetch('http://localhost:3000/currentSong', {
+		method: 'POST',
+		headers: {
+			'Authorization': 'Bearer ' + OAUTH_TOKEN, ///maybe APP_OAUTH_TOKEN?
+			'Client-Id': CLIENT_ID,
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			newCurrentSong: value,
+			userId: STREAM_ACCOUNT_NAME,
+		})
+	});
+
+	if (response.status != 200) {
+		let data = await response.json();
+		console.error("Database communication failure: Failed Update Active Song");
+		console.error(data);
+	} else {
+		console.log("Updated Active song.");
+	}
+
+
+}
+
+async function updateSongPlaylistBackend(value){ //multiple YTVI in order
+
+}
 
 //Unordered Top 10 VNs
 //Umineko
@@ -541,24 +586,24 @@ function getFirstArgOfCommand(command){
 }
 
 export function tester(SS){
-	console.log("Test123456");
-	var ytVI = new youtubeVideoInfo("gXCI8vJTjqA", "", "");
-	ytVI.channelTitle = "幽閉サテライト・少女フラクタル・幽閉カタルシス 公式チャンネル";
-	ytVI.duration = "PT5M56S";
-	ytVI.embeddable = true;
-	ytVI.license = "youtube";
-	ytVI.privacyStatus = "public";
-	ytVI.publicStatsViewable = true;
-	ytVI.requestedBy = "etherealAffairs";
-	ytVI.songTitle = "【公式】【東方Vocal】幽閉サテライト / 華鳥風月/歌唱senya【FullMV】（原曲：六十年目の東方裁判 ～ Fate of Sixty Years）";
-	ytVI.uploadStatus = "processed";
-	ytVI.videoId = "gXCI8vJTjqA";
-	playlistArray.push(ytVI);
-	console.log(playlistArray.length);
-	console.log(sumActivePlaylistTime());
-	//console.log(sumActivePlaylistTime());
-	//x = new SharedService;
-	SS.sendUpdateActiveSongHook(popPlaylist());
+
+
+	// console.log("Test123456");
+	// var ytVI = new youtubeVideoInfo("gXCI8vJTjqA", "", "");
+	// ytVI.channelTitle = "幽閉サテライト・少女フラクタル・幽閉カタルシス 公式チャンネル";
+	// ytVI.duration = "PT5M56S";
+	// ytVI.embeddable = true;
+	// ytVI.license = "youtube";
+	// ytVI.privacyStatus = "public";
+	// ytVI.publicStatsViewable = true;
+	// ytVI.requestedBy = "etherealAffairs";
+	// ytVI.songTitle = "【公式】【東方Vocal】幽閉サテライト / 華鳥風月/歌唱senya【FullMV】（原曲：六十年目の東方裁判 ～ Fate of Sixty Years）";
+	// ytVI.uploadStatus = "processed";
+	// ytVI.videoId = "gXCI8vJTjqA";
+	// playlistArray.push(ytVI);
+	// console.log(playlistArray.length);
+	// console.log(sumActivePlaylistTime());
+	// SS.sendUpdateActiveSongHook(popPlaylist());
 	if(SS == null){
 		console.log("SS is null");
 	}
@@ -568,39 +613,126 @@ export function tester(SS){
 		console.log("SS is defined");
 
 	}
-	var ytVI = new youtubeVideoInfo("W3q8Od5qJio", "", "");
-	ytVI.channelTitle = "Rammstein Official";
-	ytVI.duration = "PT3M56S";
-	ytVI.embeddable = true;
-	ytVI.license = "youtube";
-	ytVI.privacyStatus = "public";
-	ytVI.publicStatsViewable = true;
-	ytVI.requestedBy = "etherealAffairs";
-	ytVI.songTitle = "Rammstein - Du Hast (Official 4K Video)";
-	ytVI.uploadStatus = "processed";
-	ytVI.videoId = "W3q8Od5qJio";
-	playlistArray.push(ytVI);
+	// var ytVI = new youtubeVideoInfo("W3q8Od5qJio", "", "");
+	// ytVI.channelTitle = "Rammstein Official";
+	// ytVI.duration = "PT3M56S";
+	// ytVI.embeddable = true;
+	// ytVI.license = "youtube";
+	// ytVI.privacyStatus = "public";
+	// ytVI.publicStatsViewable = true;
+	// ytVI.requestedBy = "etherealAffairs";
+	// ytVI.songTitle = "Rammstein - Du Hast (Official 4K Video)";
+	// ytVI.uploadStatus = "processed";
+	// ytVI.videoId = "W3q8Od5qJio";
+	// playlistArray.push(ytVI);
 
-	var ytVI = new youtubeVideoInfo("WxnN05vOuSM", "", "");
-	ytVI.channelTitle = "Iron Maiden";
-	ytVI.duration = "PT4M52S";
-	ytVI.embeddable = true;
-	ytVI.license = "youtube";
-	ytVI.privacyStatus = "public";
-	ytVI.publicStatsViewable = true;
-	ytVI.requestedBy = "etherealAffairs";
-	ytVI.songTitle = "Iron Maiden - The Number Of The Beast (Official Video)";
-	ytVI.uploadStatus = "processed";
-	ytVI.videoId = "WxnN05vOuSM";
-	playlistArray.push(ytVI);
+	// var ytVI = new youtubeVideoInfo("WxnN05vOuSM", "", "");
+	// ytVI.channelTitle = "Iron Maiden";
+	// ytVI.duration = "PT4M52S";
+	// ytVI.embeddable = true;
+	// ytVI.license = "youtube";
+	// ytVI.privacyStatus = "public";
+	// ytVI.publicStatsViewable = true;
+	// ytVI.requestedBy = "etherealAffairs";
+	// ytVI.songTitle = "Iron Maiden - The Number Of The Beast (Official Video)";
+	// ytVI.uploadStatus = "processed";
+	// ytVI.videoId = "WxnN05vOuSM";
+	// playlistArray.push(ytVI);
 
 
 	
-	SS.sendUpdateDragDropSongHook(playlistArray);
-	//SS.sendUpdateDragDropSongHook("playlistArrayTest");
+	//SS.sendUpdateDragDropSongHook(playlistArray);
+	//console.log('getting Playlist from Backend');
+	//getPlaylistFromBackend(STREAM_ACCOUNT_NAME);
+	console.log('loadingPlaylist from backend');
+	loadPlaylistFromBackend(SS);
 
 }
 
+
+//update/delete every single relevant item whenver position changes (ie next song)
+//insert new item on song
+
+async function loadPlaylistFromBackend(sharedServiceArg){
+	sharedService = sharedServiceArg;
+
+	var tempPlaylistArray = await getPlaylistFromBackend();
+	if (tempPlaylistArray != null && tempPlaylistArray != undefined){
+		for (const track of tempPlaylistArray) {
+			var ytVI = new youtubeVideoInfo(track.videoId, track.songTitle, track.channelTitle);
+			ytVI.duration = track.duration;
+			ytVI.embeddable = track.embeddable;
+			ytVI.license = track.license;
+			ytVI.privacyStatus = track.privacyStatus;
+			ytVI.publicStatsViewable = track.publicStatsViewable;
+			ytVI.requestedBy = track.requestedBy;
+			ytVI.uploadStatus = track.uploadStatus;
+			ytVI.position = track.position;
+			playlistArray.push(ytVI);
+
+		}
+	}
+	var tempCurrentSong = await getCurrentSongFromBackend();
+	if (tempCurrentSong != null && tempCurrentSong != undefined && tempCurrentSong.videoId != null && tempCurrentSong.videoId != undefined){
+		var ytVI = new youtubeVideoInfo(tempCurrentSong.videoId, tempCurrentSong.songTitle, tempCurrentSong.channelTitle);
+			ytVI.duration = tempCurrentSong.duration;
+			ytVI.embeddable = tempCurrentSong.embeddable;
+			ytVI.license = tempCurrentSong.license;
+			ytVI.privacyStatus = tempCurrentSong.privacyStatus;
+			ytVI.publicStatsViewable = tempCurrentSong.publicStatsViewable;
+			ytVI.requestedBy = tempCurrentSong.requestedBy;
+			ytVI.uploadStatus = tempCurrentSong.uploadStatus;
+			ytVI.position = tempCurrentSong.position;
+			currentSong = ytVI;
+			console.log('rantempCurrentSongStuff');
+	}
+	if (currentSong == null || currentSong == undefined && playlistArray.length > 0){
+		console.log('getting a new currentSong I hope');
+		sharedService.sendUpdateActiveSongHook(popPlaylist());
+	}
+	sharedService.sendUpdateDragDropSongHook(playlistArray);
+}
+
+async function getCurrentSongFromBackend(){
+	const playlistResponse = await fetch('http://localhost:3000/currentSong?userid=' + STREAM_ACCOUNT_NAME  , {
+		method: 'GET',
+		headers: {
+			"Client-ID": CLIENT_ID,
+			"Authorization": "Bearer "+ OAUTH_TOKEN,
+		},
+	});
+	
+
+	if (playlistResponse.status != 200) {
+		let data = await playlistResponse.json();
+		console.log('My backend server errored out on playlist request.');
+	}
+
+	let json = await playlistResponse.json();
+	console.log(json.data);//this contains the data for the user's playlist
+	return json.data;
+}
+
+async function getPlaylistFromBackend(){
+
+	const playlistResponse = await fetch('http://localhost:3000/playlist?userid=' + STREAM_ACCOUNT_NAME  , {
+		method: 'GET',
+		headers: {
+			"Client-ID": CLIENT_ID,
+			"Authorization": "Bearer "+ OAUTH_TOKEN,
+		},
+	});
+	
+
+	if (playlistResponse.status != 200) {
+		let data = await playlistResponse.json();
+		console.log('My backend server errored out on playlist request.');
+	}
+
+	let json = await playlistResponse.json();
+	console.log(json.data);//this contains the data for the user's playlist
+	return json.data;
+}
 
 
 function sumActivePlaylistTime(){

@@ -144,6 +144,7 @@ export class youtubeVideoInfo{
 		this.realTime = this.getShortTime();
 	}
 
+	///transferred to Node server
 	getShortTime(){
 		var days = 0;
 		var hours = 0;
