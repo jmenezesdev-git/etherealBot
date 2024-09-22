@@ -46,7 +46,7 @@ export async function getFirstYoutubeResult(search:string){
 			}
 		}
 		ytVI = new youtubeVideoInfo(videoId, songTitle, channelTitle);
-		getYoutubeVideoByID(ytVI);
+		await getYoutubeVideoByID(ytVI);
 		
 		console.log("outputting ytVI");
 		console.log(ytVI);
@@ -82,6 +82,7 @@ export async function getYoutubeVideoByID(ytVI:youtubeVideoInfo){
 		if (json.items[0].hasOwnProperty("contentDetails")){
 			if (json.items[0].contentDetails.hasOwnProperty("duration")){
 				ytVI.duration = json.items[0].contentDetails.duration;
+				ytVI.setShortRealTime();
 			}
 		}
 		if (json.items[0].hasOwnProperty("status")){
@@ -133,16 +134,20 @@ export class youtubeVideoInfo{
 	requestedBy = "";
 	position = -1;
 	realTime = "";
+	addedTimestamp = "";
 
 	constructor(videoId: string, songTitle: string, channelTitle: string){
 		this.videoId = videoId;
 		this.songTitle = songTitle;
 		this.channelTitle = channelTitle;
+		this.addedTimestamp = new Date().toString();
+		
 	}
 
 	setShortRealTime(){
 		this.realTime = this.getShortTime();
 	}
+
 
 	///transferred to Node server
 	getShortTime(){

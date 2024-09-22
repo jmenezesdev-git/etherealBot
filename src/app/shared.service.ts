@@ -17,6 +17,18 @@ export class SharedService {
     return this.subject.asObservable();
   }
 
+  
+  private subject_2 = new Subject<youtubeVideoInfo>();
+  sendUpdateActiveSongHookNoDB(ytVI: youtubeVideoInfo) {
+    //console.log('sendUpdateActiveSongHookNoDB');
+    this.subject_2.next(ytVI);
+  }
+  GetUpdateActiveSongHookNoDB(): Observable<youtubeVideoInfo>{ 
+    //console.log('GetUpdateActiveSongHookNoDB');
+    return this.subject_2.asObservable();
+  }
+
+
   private subject2 = new Subject<youtubeVideoInfo[]>();
   sendUpdateDragDropSongHook(ytVIA: youtubeVideoInfo[]) {
     //console.log('sendUpdateDragDropSongHook');
@@ -26,6 +38,17 @@ export class SharedService {
     //console.log('GetUpdateDragDropSongHook');
     return this.subject2.asObservable();
   }
+
+  private subject2_2 = new Subject<youtubeVideoInfo[]>();
+  sendUpdateDragDropSongHookRenumber(ytVIA: youtubeVideoInfo[]) {
+    //console.log('sendUpdateDragDropSongHookRenumber');
+    this.subject2_2.next(ytVIA);
+  }
+  GetUpdateDragDropSongHookRenumber(): Observable<youtubeVideoInfo[]>{ 
+    //console.log('GetUpdateDragDropSongHookRenumber');
+    return this.subject2_2.asObservable();
+  }
+
 
 
   

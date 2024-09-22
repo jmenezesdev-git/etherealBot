@@ -70,6 +70,9 @@ L	!xvoteskip			///initiates vote to skip current song. resets upon hitting a new
 L	!lastsong<optional>	///Get song information of nth past song, indicates total past song count
 						///resets on what, login? 12h?
 L	!xAddDef			///Mod only adds to default playlist
+L	Convert &#<number>; to correct text
+Youtube
+	Rework Youtube.ts to use https://www.npmjs.com/package/ytdl-core so we never run out of API calls.
 Security
 	use dotenv and move environment variables there.
 Backend Server
@@ -222,11 +225,16 @@ export async function tryTwitchUserTokenRefresh(sentSharedService){
 
 
 function initializeSubscribers(){
+	
 	sharedService.GetUpdateActiveSongHook().subscribe((value)=>{
 		updateActiveSongBackend(value);});
 	sharedService.GetUpdateDragDropSongHook().subscribe((value)=>{
 		updateSongPlaylistBackend(value);
 	});
+	sharedService.GetUpdateDragDropSongHookRenumber().subscribe((value)=>{
+		updateSongPlaylistBackend(value);
+	});
+
 }
 
 async function updateActiveSongBackend(value){ //single YTVI
@@ -257,7 +265,60 @@ async function updateActiveSongBackend(value){ //single YTVI
 }
 
 async function updateSongPlaylistBackend(value){ //multiple YTVI in order
+	//push a newly ordered playlist into the backend
+	//this could contain 1 new item or none.
+	console.log('value in updateSongPlaylistBackend');
+	console.log(value);
+	let response = await fetch('http://localhost:3000/rearrangeSongs', {
+		method: 'POST',
+		headers: {
+			'Authorization': 'Bearer ' + OAUTH_TOKEN, ///maybe APP_OAUTH_TOKEN?
+			'Client-Id': CLIENT_ID,
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			reorderedTracks: value,
+			userId: STREAM_ACCOUNT_NAME,
+		})
+	});
 
+	if (response.status != 200) {
+		let data = await response.json();
+		console.error("Database communication failure: Failed to Rearrange tracks in Backend");
+		console.error(data);
+	} else {
+		console.log("Rearranged Tracks Successfully!");
+	}
+}
+
+async function	addTrackToBackend(newTrack){ //YTVI's latest
+	console.log('newTrack in addTrackToBackend');
+	console.log(newTrack);
+	let response = await fetch('http://localhost:3000/addSong', {
+		method: 'POST',
+		headers: {
+			'Authorization': 'Bearer ' + OAUTH_TOKEN, ///maybe APP_OAUTH_TOKEN?
+			'Client-Id': CLIENT_ID,
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			newTrack: newTrack,
+			userId: STREAM_ACCOUNT_NAME,
+		})
+	});
+
+	if (response.status != 200) {
+		let data = await response.json();
+		console.error("Database communication failure: Failed to Add Track to Backend");
+		console.error(data);
+	} else {
+		console.log("Added New Song.");
+	}
+}
+
+
+async function addToSongPlaylistBackend(){ //do we need this?
+	
 }
 
 //Unordered Top 10 VNs
@@ -668,22 +729,29 @@ async function loadPlaylistFromBackend(sharedServiceArg){
 			ytVI.requestedBy = track.requestedBy;
 			ytVI.uploadStatus = track.uploadStatus;
 			ytVI.position = track.position;
+			ytVI.addedTimestamp = track.addedTimestamp;
+			ytVI.setShortRealTime();
 			playlistArray.push(ytVI);
 
 		}
 	}
 	var tempCurrentSong = await getCurrentSongFromBackend();
-	if (tempCurrentSong != null && tempCurrentSong != undefined && tempCurrentSong.videoId != null && tempCurrentSong.videoId != undefined){
-		var ytVI = new youtubeVideoInfo(tempCurrentSong.videoId, tempCurrentSong.songTitle, tempCurrentSong.channelTitle);
-			ytVI.duration = tempCurrentSong.duration;
-			ytVI.embeddable = tempCurrentSong.embeddable;
-			ytVI.license = tempCurrentSong.license;
-			ytVI.privacyStatus = tempCurrentSong.privacyStatus;
-			ytVI.publicStatsViewable = tempCurrentSong.publicStatsViewable;
-			ytVI.requestedBy = tempCurrentSong.requestedBy;
-			ytVI.uploadStatus = tempCurrentSong.uploadStatus;
-			ytVI.position = tempCurrentSong.position;
+	console.log(tempCurrentSong);
+	if (tempCurrentSong != null && tempCurrentSong != undefined && tempCurrentSong.length > 0 && tempCurrentSong[0].videoId != null && tempCurrentSong[0].videoId != undefined){
+		var ytVI = new youtubeVideoInfo(tempCurrentSong[0].videoId, tempCurrentSong[0].songTitle, tempCurrentSong[0].channelTitle);
+			ytVI.duration = tempCurrentSong[0].duration;
+			ytVI.embeddable = tempCurrentSong[0].embeddable;
+			ytVI.license = tempCurrentSong[0].license;
+			ytVI.privacyStatus = tempCurrentSong[0].privacyStatus;
+			ytVI.publicStatsViewable = tempCurrentSong[0].publicStatsViewable;
+			ytVI.requestedBy = tempCurrentSong[0].requestedBy;
+			ytVI.uploadStatus = tempCurrentSong[0].uploadStatus;
+			ytVI.position = tempCurrentSong[0].position;
+			ytVI.addedTimestamp = tempCurrentSong[0].addedTimestamp;
+			ytVI.setShortRealTime();
 			currentSong = ytVI;
+			//sharedService.sendUpdateActiveSongHook(currentSong);
+			sharedService.sendUpdateActiveSongHookNoDB(currentSong);
 			console.log('rantempCurrentSongStuff');
 	}
 	if (currentSong == null || currentSong == undefined && playlistArray.length > 0){
@@ -834,8 +902,9 @@ async function addSongToQueue(songArg, sender){
 		const regex = /^.*watch\?v=([A-Za-z0-9]*)(&.*)?$/i;
 		songArg = songArg.replace(regex, "$1");
 		ytVI = new youtubeVideoInfo(songArg, "", "");
-		getYoutubeVideoByID(new youtubeVideoInfo(songArg, "", ""));
+		await getYoutubeVideoByID(new youtubeVideoInfo(songArg, "", ""));
 		ytVI.requestedBy = sender;
+		ytVI.position = playlistArray.length + 1;
 		playlistArray.push(ytVI);
 		sendChatMessage(addSongConfirmMessage(result));			
 	}
@@ -843,6 +912,7 @@ async function addSongToQueue(songArg, sender){
 		var result = await getFirstYoutubeResult(songArg);
 		if(result.songTitle != null && result.songTitle != undefined && result.songTitle != ""){
 			result.requestedBy = sender;
+			result.position = playlistArray.length + 1;
 			playlistArray.push(result);
 			sendChatMessage(addSongConfirmMessage(result));
 		}
@@ -856,12 +926,14 @@ async function addSongToQueue(songArg, sender){
 	if (currentSong == undefined && playlistArray.length > 0){
 		
 		sharedService.sendUpdateActiveSongHook(popPlaylist());
+
 	}
 
 	if (currentSong != undefined && playlistArray.length > 0 && playlistArray != null && playlistArray != undefined && playlistArray.length > 0){
 
 		//console.log('playlistArray before sending DragDropSongHook update');
 		//console.log(playlistArray);
+		addTrackToBackend(playlistArray[playlistArray.length-1]); 
 		sharedService.sendUpdateDragDropSongHook(playlistArray);
 	}	
 
@@ -966,7 +1038,7 @@ async function registerEventSubListeners() {
 
 export function relocateItemInPlaylistArray(currentIndex, newIndex){
 	playlistArray = playlistArrayMove(playlistArray, currentIndex, newIndex);
-	sharedService.sendUpdateDragDropSongHook(playlistArray);
+	sharedService.sendUpdateDragDropSongHookRenumber(playlistArray);
 }
 
 function playlistArrayMove(array, currentIndex, newIndex){

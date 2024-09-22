@@ -146,9 +146,16 @@ export class AppComponent implements OnInit{
 
     this.sharedService.GetUpdateActiveSongHook().subscribe((value)=>{
       this.updateActiveSong(value);});
+    this.sharedService.GetUpdateActiveSongHookNoDB().subscribe((value)=>{
+      this.updateActiveSong(value);});
     this.sharedService.GetUpdateDragDropSongHook().subscribe((value)=>{
       this.updateDragDrop(value);
     });
+    this.sharedService.GetUpdateDragDropSongHookRenumber().subscribe((value)=>{
+      this.updateDragDropRenumber(value);
+    });
+
+    
 
   }
 
@@ -418,6 +425,8 @@ export class AppComponent implements OnInit{
       //pull from backup playlist                                                                                                   //INJECT BACKUP PLAYLIST CODE HERE
 
     }
+    else{
+    }
     return nextTrack;
   }
 
@@ -437,8 +446,10 @@ export class AppComponent implements OnInit{
 
     //console.log('Going to next video');
     if (peekPlaylist() != undefined){
-      this.videoId = this.optionalInjectBackUpPlaylist(popPlaylist()).videoId;
-      return this.videoId;
+      //this.videoId = this.optionalInjectBackUpPlaylist(popPlaylist()).videoId;
+      this.sharedService.sendUpdateActiveSongHook(popPlaylist());
+      
+      return peekPlaylist().videoId;
     }
     else{
       console.log('Playlist is empty you fool!');
@@ -462,7 +473,14 @@ export class AppComponent implements OnInit{
   updateActiveSong(ytVI:youtubeVideoInfo){
     //newTrack:youtubeVideoInfo
     // console.log('running updateActiveSong');
+    this.updateDragDropRenumber(getPlaylist());
     this.videoId = ytVI.videoId;
+  }
+  
+  updateActiveSong_IDOnly(vid:string){
+    //newTrack:youtubeVideoInfo
+    // console.log('running updateActiveSong');
+    this.videoId = vid;
   }
   
   updateDragDrop(ytVI:youtubeVideoInfo[]){
@@ -470,9 +488,23 @@ export class AppComponent implements OnInit{
     //console.log(ytVI);
 
     //setting mandatory values for display purposes only. SHOULD NEVER IMPACT underlying data 
+    // ytVI.forEach((element, index)=> {
+      // element.position = index + 1;
+      //element.setShortRealTime();
+    // });
+
+    this.dataSource2 = ytVI;
+    this.table2.renderRows();
+  }
+
+  updateDragDropRenumber(ytVI:youtubeVideoInfo[]){
+    //console.log('updateDragDrop'); 
+    //console.log(ytVI);
+
+    //setting mandatory values for display purposes only. SHOULD NEVER IMPACT underlying data 
     ytVI.forEach((element, index)=> {
       element.position = index + 1;
-      element.setShortRealTime();
+      //element.setShortRealTime();
     });
 
     this.dataSource2 = ytVI;
