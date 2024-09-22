@@ -36,14 +36,19 @@ COMPLETED
 Cookies
 #	Remember my login
 	NEED TO CHANGE OAUTH TOKEN GENERATION TO BE OPTIONAL/OCCASIONAL	
-	
+Database
+#	Remember my playlists & settings outside of cookies
+#	mongodb for the lulz?
+#	Separate backend server
+#	Access database from backend server
+
 #	= High priority
 WIP = Work in Progress
 L	= Low Priority
 
 
 
-URGENT:	
+URGENT:	Add delete to backend server
 NEXT: xsr change to youtube search return first result, xsr provides feedback as to remaining time and newly added songname
 THEN:	
 Frontend Queue interface
@@ -76,12 +81,8 @@ Youtube
 Security
 	use dotenv and move environment variables there.
 Backend Server
-#	Separate backend server
-#	Access database from backend server
+#	Delete API calls
 	Oauth from backend server. How is this possible if it forces front-end logins?
-Database
-#	Remember my playlists & settings outside of cookies
-#	mongodb for the lulz?
 Ai Chatbot Integration
 L	Your favorite waifu in chat
 Test possibility for automated redeems via channel points
