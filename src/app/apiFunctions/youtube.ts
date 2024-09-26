@@ -1,8 +1,9 @@
 var YOUTUBE_API_KEY = 'CHANGE_ME';
 const YOUTUBE_OAUTH_TOKEN = "ABC123";
+import { min } from "rxjs";
 import { environment } from "../environment";
 
-//INCOMPLETE
+
 export async function getFirstYoutubeResult(search:string){
     let YOUTUBE_API_KEY =  environment.YoutubeAPIKey;
 
@@ -204,6 +205,102 @@ export class youtubeVideoInfo{
 
 		return "0 seconds";
 	}
+
+	//if (myDate > myOtherDate)
+
+	getSeconds(ytTimeVal: String){
+		var days = 0;
+		var hours = 0;
+		var minutes = 0;
+		var seconds = 0;
+		const regexp = /PT((\d+)DT)?((\d+)H)?((\d+)M)?(\d+)S/g;
+
+		if (ytTimeVal != null && ytTimeVal != undefined && ytTimeVal.length > 0){
+			let matches = ytTimeVal.matchAll(regexp);
+			for (const match of matches) {
+				if (match.length > 7){
+					if(match[2] != undefined){
+						days += Number(match[2]);
+					}
+					if (match[4] != undefined){
+						hours += Number(match[4]);
+					}
+					if (match[6] != undefined){
+						minutes += Number(match[6]);
+					}
+					if (match[7] != undefined){
+						seconds += Number(match[7]);
+					}
+				}
+			}
+			
+			var returnSeconds = 0;
+			if (days > 0){
+				returnSeconds += days * 86400;
+			}
+			if (hours > 0){
+				returnSeconds += hours * 3600;
+			}
+			if (minutes > 0){
+				returnSeconds += minutes * 60;
+			}
+			if (seconds > 0){
+				returnSeconds += seconds * 1;
+			}
+			return returnSeconds;
+
+		}
+
+		return 0;
+	}
+
+	static getRelativeDate(ytTimeVal: String){
+		var days = 0;
+		var hours = 0;
+		var minutes = 0;
+		var seconds = 0;
+		const regexp = /PT((\d+)DT)?((\d+)H)?((\d+)M)?(\d+)S/g;
+
+		if (ytTimeVal != null && ytTimeVal != undefined && ytTimeVal.length > 0){
+			let matches = ytTimeVal.matchAll(regexp);
+			for (const match of matches) {
+				if (match.length > 7){
+					if(match[2] != undefined){
+						days += Number(match[2]);
+					}
+					if (match[4] != undefined){
+						hours += Number(match[4]);
+					}
+					if (match[6] != undefined){
+						minutes += Number(match[6]);
+					}
+					if (match[7] != undefined){
+						seconds += Number(match[7]);
+					}
+				}
+			}
+			var d = new Date(0);
+			var returnSeconds = 0;
+			if (days > 0){
+				d.setDate(d.getDate() + days);
+			}
+			if (hours > 0){
+				d.setHours(hours);
+			}
+			if (minutes > 0){
+				d.setMinutes(minutes);
+			}
+			if (seconds > 0){
+				d.setSeconds(seconds);
+			}
+			return d;
+
+		}
+
+		return new Date(0);
+	}
+
+	
 	
 }
 

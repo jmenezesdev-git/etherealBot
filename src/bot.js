@@ -4,6 +4,7 @@ import { getFirstYoutubeResult, getYoutubeVideoByID, youtubeVideoInfo } from './
 import {AppComponent} from './app/app.component';
 import { SharedService } from './app/shared.service';
 import { moveItemInArray } from '@angular/cdk/drag-drop';
+import { botSettings } from './botSettings';
 
 
 
@@ -41,6 +42,7 @@ Database
 #	mongodb for the lulz?
 #	Separate backend server
 #	Access database from backend server
+#	Delete API calls
 
 #	= High priority
 WIP = Work in Progress
@@ -48,18 +50,19 @@ L	= Low Priority
 
 
 
-URGENT:	Add delete to backend server
-NEXT: xsr change to youtube search return first result, xsr provides feedback as to remaining time and newly added songname
-THEN:	
+URGENT:
+NEXT:#	Length Limit
+THEN:#	Songs Per User
 Frontend Queue interface
 #	Drag & Drop interface to reorder?
 	List includes the following:
 		Option to add to default Queue
 Frontend Settings interface
-#	Length Limit
-#	Songs Per User
+WIP	Length Limit
+WIP	Songs Per User
 #	Default Playlist	///Plays when there are no songs in queue
 						///first song is the default when a user logs in or opens the page
+	Total Time Per User	///Limits Queue capacity per user to X minutes/hours
 L	Voteskip Count
 L	Disabling commands	
 L	Enable Spotify/YT 	
@@ -81,7 +84,6 @@ Youtube
 Security
 	use dotenv and move environment variables there.
 Backend Server
-#	Delete API calls
 	Oauth from backend server. How is this possible if it forces front-end logins?
 Ai Chatbot Integration
 L	Your favorite waifu in chat
@@ -114,8 +116,6 @@ So you need an application to get the chat login token. If you want to do more w
 
 
 
-
-
 //import { webSocket } from "rxjs/webSocket";
 // does this array contain results only?
 var playlistArray = [];//['https://www.youtube.com/watch?v=ZXZZZZZZZ', 'https://www.youtube.com/watch?v=aYzt6WJEx10', 'https://www.youtube.com/watch?v=ocQ7sFFxOh4&pp=ygUJaW4gZmxhbWVz', 'https://www.youtube.com/watch?v=LQXgNLGDPgo&pp=ygUZZWR1Y2F0ZWQgZm9vbCBpcm9uIG1haWRlbg%3D%3D'];
@@ -134,6 +134,8 @@ var optionalCommandPrefix = 'x';
 const EVENTSUB_WEBSOCKET_URL = 'wss://eventsub.wss.twitch.tv/ws';
 
 var websocketSessionID = "";
+var ethBotSettings;
+
 
 // Start executing the bot from here
 	// Don't at present want this to start without being invoked in this project.
@@ -165,21 +167,18 @@ export async function externalAccessCall(sentsharedService){
 	// Start WebSocket client and register handlers
 
 }
-export async function initializeWebSocket(sentsharedService){
-	CLIENT_ID = environment.CLIENT_ID;
-	CLIENT_SECRETID = environment.CLIENT_SECRETID;
-	sharedService = sentsharedService;
-	BOT_USER_ID = localStorage.getItem('etherealBotBotUserId');
-	CHAT_CHANNEL_USER_ID = localStorage.getItem('etherealBotChatChannelUserId');
-	STREAM_ACCOUNT_NAME = localStorage.getItem('etherealBotStreamAccountName');
-	OAUTH_TOKEN = localStorage.getItem('etherealBotTwitchOAuthAccessToken');
-	initializeSubscribers();
-	const websocketClient = startWebSocketClient();
-}
 
-export async function tryTwitchUserTokenRefresh(sentSharedService){
+async function initializeCommonSettings(sentSharedService){
+	if(sentSharedService == null){
+		console.log("sentSharedService is null");
+	}
+	if(sentSharedService == undefined){
+		console.log("sentSharedService is undefined");
+	} else if (sentSharedService != undefined && sentSharedService != null){
+		console.log("sentSharedService is defined");
 
-	
+	}
+
 	CLIENT_ID = environment.CLIENT_ID;
 	CLIENT_SECRETID = environment.CLIENT_SECRETID;
 	sharedService = sentSharedService;
@@ -187,6 +186,38 @@ export async function tryTwitchUserTokenRefresh(sentSharedService){
 	CHAT_CHANNEL_USER_ID = localStorage.getItem('etherealBotChatChannelUserId');
 	STREAM_ACCOUNT_NAME = localStorage.getItem('etherealBotStreamAccountName');
 	OAUTH_TOKEN = localStorage.getItem('etherealBotTwitchOAuthAccessToken');
+
+
+	initializeSubscribers();
+	
+	const playlistResponse = await fetch('http://localhost:3000/getSettings?userId=' + STREAM_ACCOUNT_NAME  , {
+		method: 'GET',
+		headers: {
+			"Client-ID": CLIENT_ID,
+			"Authorization": "Bearer "+ OAUTH_TOKEN,
+		},
+	});
+	
+
+	if (playlistResponse.status != 200) {
+		let data = await playlistResponse.json();
+		console.log('My backend server errored out on the getSettings request.');
+	}
+
+	let json = await playlistResponse.json();
+
+	ethBotSettings = new botSettings(json.data.lengthLimit, json.data.songsPerUser, json.data.streamChannel);
+
+}
+
+export async function initializeWebSocket(sentSharedService){
+	await initializeCommonSettings(sentSharedService);
+	loadPlaylistFromBackend(sentSharedService);
+	const websocketClient = startWebSocketClient();
+}
+
+export async function tryTwitchUserTokenRefresh(sentSharedService){
+	await initializeCommonSettings(sentSharedService);
 	//console.log(localStorage.getItem('etherealBotTwitchRefreshToken'));
 
 	const response = await fetch('https://id.twitch.tv/oauth2/token', {
@@ -209,15 +240,10 @@ export async function tryTwitchUserTokenRefresh(sentSharedService){
 	}
 
 	const json = await response.json();
-	//let APP_OAUTH_TOKEN = json.access_token;
-	//console.log(json);
 	environment.TwitchOAuthAccessToken = json.access_token;
 	localStorage.setItem('etherealBotTwitchOAuthAccessToken', json.access_token);
 	localStorage.setItem('etherealBotTwitchRefreshToken', json.refresh_token);
-	//console.log(json.refresh_token);
-	//console.log("OAUTH_TOKEN = " + OAUTH_TOKEN);
-	//;console.log(response.toString());
-	initializeSubscribers();
+	loadPlaylistFromBackend(sentSharedService);
 	const websocketClient = startWebSocketClient();
 	return '';
 
@@ -525,16 +551,7 @@ function handleWebSocketMessage(data) {
 							sendChatMessage('There is no current song!');
 						}
 					} else if (startsWith('!'+ optionalCommandPrefix +'wrongsong', messageText)){
-						if(playlistArray.length > 0){
-							for (let i = playlistArray.length; i > 0; i--) {
-								if (playlistArray[i-1].requestedBy == sender){
-									//remove from array
-									sendChatMessage('Removed' + playlistArray[i-1].songTitle + ' by ' + playlistArray[i-1].channelTitle + 'from playlist.');
-									playlistArray.splice(i-1,1);
-									i = 0; //halt iteration.
-								}
-							}
-						}
+						wrongSong(sender);
 					}
 					break;
 			}
@@ -544,6 +561,47 @@ function handleWebSocketMessage(data) {
 			break;
 
 
+	}
+
+}
+
+function wrongSong(sender){
+	if(playlistArray.length > 0){
+		for (let i = playlistArray.length; i > 0; i--) {
+			if (playlistArray[i-1].requestedBy == sender){
+				//remove from array
+				removeSongFromBackend(playlistArray[i-1]);
+				sendChatMessage('Removed ' + playlistArray[i-1].songTitle + ' by ' + playlistArray[i-1].channelTitle + ' from playlist.');
+				playlistArray.splice(i-1,1);
+				sharedService.sendUpdateDragDropSongHookRenumber(playlistArray);
+				i = 0; //halt iteration.
+			}
+		}
+	}
+}
+
+async function removeSongFromBackend(track){
+	console.log('newTrack in addTrackToBackend');
+	console.log(track);
+	let response = await fetch('http://localhost:3000/deleteSong', {
+		method: 'POST',
+		headers: {
+			'Authorization': 'Bearer ' + OAUTH_TOKEN, ///maybe APP_OAUTH_TOKEN?
+			'Client-Id': CLIENT_ID,
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			track: track,
+			userId: STREAM_ACCOUNT_NAME,
+		})
+	});
+
+	if (response.status != 200) {
+		let data = await response.json();
+		console.error("Database communication failure: Failed to Add Track to Backend");
+		console.error(data);
+	} else {
+		console.log("Added New Song.");
 	}
 
 }
@@ -707,7 +765,7 @@ export function tester(SS){
 	//console.log('getting Playlist from Backend');
 	//getPlaylistFromBackend(STREAM_ACCOUNT_NAME);
 	console.log('loadingPlaylist from backend');
-	loadPlaylistFromBackend(SS);
+	
 
 }
 
@@ -896,6 +954,26 @@ function addSongConfirmMessage(ytVI){
 	}
 }
 
+async function validateVideoSettings(ytVI){
+
+	//console.log(youtubeVideoInfo.getRelativeDate(ethBotSettings.lengthLimit))
+	//console.log(youtubeVideoInfo.getRelativeDate(ytVI.duration))
+	if (ethBotSettings.lengthLimit != "-1"){
+		if ( youtubeVideoInfo.getRelativeDate(ytVI.duration) > youtubeVideoInfo.getRelativeDate(ethBotSettings.lengthLimit)){ ///good odds this needs changing.
+			console.log ("less than duration")
+			return false;
+		}
+	}
+	if(ethBotSettings.songsPerUser > -1 && playlistArray != null && playlistArray != undefined && playlistArray.length > 0){
+		
+		var userSongsCount = playlistArray.filter(p => p.requestedBy == ytVI.requestedBy).length;
+		if(userSongsCount > ethBotSettings.songsPerUser){
+			return false;
+		}
+	}
+	return true;
+}
+
 
 async function addSongToQueue(songArg, sender){
 
@@ -906,16 +984,28 @@ async function addSongToQueue(songArg, sender){
 		await getYoutubeVideoByID(new youtubeVideoInfo(songArg, "", ""));
 		ytVI.requestedBy = sender;
 		ytVI.position = playlistArray.length + 1;
-		playlistArray.push(ytVI);
-		sendChatMessage(addSongConfirmMessage(result));			
+
+		///////////////////validate video settings
+		if(validateVideoSettings(ytVI)){
+			playlistArray.push(ytVI);
+			sendChatMessage(addSongConfirmMessage(result));
+		} else{
+
+		}	
 	}
 	else{
 		var result = await getFirstYoutubeResult(songArg);
 		if(result.songTitle != null && result.songTitle != undefined && result.songTitle != ""){
 			result.requestedBy = sender;
 			result.position = playlistArray.length + 1;
-			playlistArray.push(result);
-			sendChatMessage(addSongConfirmMessage(result));
+
+			/////////////////validate video settings
+			if(validateVideoSettings(result)){
+				playlistArray.push(result);
+				sendChatMessage(addSongConfirmMessage(result));
+			} else{
+
+			}
 		}
 		else{
 			sendChatMessage('Something went wrong when adding ' + songArg + ' to the list, sorry!');	
