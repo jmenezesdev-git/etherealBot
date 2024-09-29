@@ -30,6 +30,8 @@ import { CdkContextMenuTrigger, CdkMenuModule } from '@angular/cdk/menu';
 
 import {MatTable, MatTableModule} from '@angular/material/table';
 import {MatIconModule} from '@angular/material/icon';
+import { SettingsComponent } from "./settings/settings.component";
+import { botSettings } from 'src/botSettings';
 
 // @NgModule({
 //   imports: [BrowserModule, FormsModule, YouTubePlayerModule],
@@ -55,23 +57,12 @@ export const DATAARR: youtubeVideoInfo[] = [
   // {position: "2", videoId:"gXCI8vJTjqA", duration: "PT5M56S", requestedBy:"TestUser", songTitle:"【公式】【東方Vocal】幽閉サテライト / 華鳥風月/歌唱senya【FullMV】（原曲：六十年目の東方裁判 ～ Fate of Sixty Years）"},];
 ]; 
 
-  // var ytVI = new youtubeVideoInfo("gXCI8vJTjqA", "", "");
-	// ytVI.channelTitle = "幽閉サテライト・少女フラクタル・幽閉カタルシス 公式チャンネル";
-	// ytVI.duration = "PT5M56S";
-	// ytVI.embeddable = true;
-	// ytVI.license = "youtube";
-	// ytVI.privacyStatus = "public";
-	// ytVI.publicStatsViewable = true;
-	// ytVI.requestedBy = "etherealAffairs";
-	// ytVI.songTitle = "【公式】【東方Vocal】幽閉サテライト / 華鳥風月/歌唱senya【FullMV】（原曲：六十年目の東方裁判 ～ Fate of Sixty Years）";
-	// ytVI.uploadStatus = "processed";
-	// ytVI.videoId = "gXCI8vJTjqA";
 
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [HomeComponent, RouterLink, RouterOutlet, HttpClientModule,  FormsModule, YouTubePlayerModule, CdkDropList, CdkDrag, MatTableModule, MatIconModule, CdkMenuModule ],
+  imports: [HomeComponent, RouterLink, RouterOutlet, HttpClientModule, FormsModule, YouTubePlayerModule, CdkDropList, CdkDrag, MatTableModule, MatIconModule, CdkMenuModule, SettingsComponent],
   templateUrl: './app.component.html',
   encapsulation: ViewEncapsulation.None,
   styleUrls: ['./app.component.css'],
@@ -105,6 +96,8 @@ export class AppComponent implements OnInit{
   width = 400;
   loggedIntoTwitch = false;
   connectTwitchVisibility = 'visible';
+  showSettings = "none";
+  settings: botSettings|undefined; //trying to avoid naming a variable the same as a class
   
 
 
@@ -375,6 +368,17 @@ export class AppComponent implements OnInit{
     this.connectTwitchVisibility = 'visible'
     
     window.location.reload();
+  }
+
+  ethBotSettingsMenuOpen(){
+    this.showSettings = "flex";
+
+  }  
+  ethBotSettingsCancel(){
+    this.showSettings = "none";
+  }
+  ethBotSettingsSave(){
+    this.showSettings = "none";
   }
 
   //TestIfPageExists before loading

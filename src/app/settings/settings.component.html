@@ -1,6 +1,40 @@
 <!DOCTYPE html >
 <html>
   <head>
-    </head>
-    <body></body>
+
+  </head>
+  <body>
+    <!-- Max Song Length Hours _ Minutes _ Seconds _
+    Song Length Mod Exception _
+    Per User Song Limit _ Song Limit Mod Exception _ -->
+    <div class="eth-text-light-gray eth-settings-section">
+      <h1>
+        Settings
+      </h1>
+      <div class="eth-vertical-padding-small">
+        <span>Max Song Length: Hours </span>
+        <input class="eth-number-input-format" id="inputSettingHours" placeholder="0" type="number">
+        <span>Minutes </span>
+        <input class="eth-number-input-format" id="inputSettingMinutes" placeholder="0" type="number">
+        <span>Seconds </span>
+        <input class="eth-number-input-format" id="inputSettingSeconds" placeholder="0" type="number">
+      </div>
+      <div class="eth-vertical-padding-small">
+        <span>Song Length Mod Exception: </span>
+        <input id="inputSettingLengthModException" type="checkbox"/>
+      </div>
+      <div class="eth-vertical-padding-small">
+        <span>Per User Song Limit </span>
+        <input class="eth-number-input-format" id="inputSettingCountLimit" placeholder="0" type="number">
+      </div>
+      <div class="eth-vertical-padding-small">
+        <span>Song Limit Mod Exception: </span>
+        <input id="inputSettingCountModException" type="checkbox"/>
+      </div>
+    </div>
+    <div>
+      <button class="w3-button eth-menu-button-li  eth-text-light-gray" (click)="saveSettings()">Save</button>
+    </div>
+    
+  </body>
 </html>
