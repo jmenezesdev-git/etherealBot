@@ -272,6 +272,14 @@ hr{border:0;border-top:1px solid #eee;margin:20px 0}
   color:#f1f1f1
 }
 
+.eth-text-light-gray-imp{
+  color: #f1f1f1!important;
+}
+
+.eth-large-font{
+  font-size: large;
+}
+
 .eth-middle-right{
   position:absolute;
   top:50%;

@@ -281,9 +281,9 @@ export class youtubeVideoInfo{
 			}
 			var d = new Date(0);
 			var returnSeconds = 0;
-			if (days > 0){
+			// if (days > 0){
 				d.setDate(d.getDate() + days);
-			}
+			// }
 			if (hours > 0){
 				d.setHours(hours);
 			}

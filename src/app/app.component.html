@@ -19,9 +19,10 @@
     </style>
   </head>
   <body class="eth-text-light-gray">
-    <div class="eth-overlay-bkg" [style.display]="showSettings" (click)="ethBotSettingsCancel()">
+    <div class="eth-overlay-bkg" [style.display]="showSettings" (click)="ethBotSettingsCloseWindow()">
       <div class="eth-overlay-menu" (click)="$event.stopPropagation()">
-          <app-settings *ngIf="settings" [settings]="settings"></app-settings>
+          <app-settings (closeSettingsEvent)="onSaveSettings($event)" *ngIf="settings" [settings]="settings"></app-settings>
+          <!-- *ngIf="settings" -->
       </div>
     </div>
     <div class="w3-top">
@@ -132,6 +133,7 @@
   <div class="yt-drag-drop-context-menu" cdkMenu>
     <!-- yt-drag-drop-context-menu-item -->
     <button (click)="rowDelete(ytVI)" class="eth-context-menu-button eth-text-light-gray" cdkMenuItem>Remove From Queue</button>
+    <button (click)="addToDefault(ytVI)" class="eth-context-menu-button eth-text-light-gray" cdkMenuItem>Add to Default Queue</button>
   </div>
 </ng-template>
 

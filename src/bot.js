@@ -13,7 +13,7 @@ import { botSettings } from './botSettings';
 
 
 /*
-Today's goals:
+Today's goals: Default Playlist completion
 
 
 COMPLETED
@@ -27,7 +27,10 @@ COMPLETED
 #	!xsr <required>		///add arg1 to song queue, when in doubt it is YT song.
 #	!xsong 				///Indicates currently playing song information
 	!xwrongsong			///removes users latest song from queue
-
+Frontend Settings interface
+	Mod override
+#	Length Limit
+#	Duration Limit
 #	Drag & Drop interface to reorder?
 	List includes the following:
 		Video/Song Name
@@ -50,16 +53,13 @@ L	= Low Priority
 
 
 
-URGENT:
-NEXT:#	Length Limit
-THEN:#	Songs Per User
+URGENT: Default Playlist
+NEXT: 
+THEN:
 Frontend Queue interface
 #	Drag & Drop interface to reorder?
 	List includes the following:
 		Option to add to default Queue
-Frontend Settings interface
-WIP	Length Limit
-WIP	Songs Per User
 #	Default Playlist	///Plays when there are no songs in queue
 						///first song is the default when a user logs in or opens the page
 	Total Time Per User	///Limits Queue capacity per user to X minutes/hours
@@ -83,6 +83,8 @@ Youtube
 	Rework Youtube.ts to use https://www.npmjs.com/package/ytdl-core so we never run out of API calls.
 Security
 	use dotenv and move environment variables there.
+Twitch
+	process to automatically refresh OAuth token when running for long sessions.
 Backend Server
 	Oauth from backend server. How is this possible if it forces front-end logins?
 Ai Chatbot Integration
@@ -127,12 +129,11 @@ var OAUTH_TOKEN = 'CHANGE_ME'; // Needs scopes user:bot, user:read:chat, user:wr
 var CLIENT_ID = 'Will_Be_Changed';
 var STREAM_ACCOUNT_NAME = '___EMPTIED_PRIOR_TO_COMMIT__'; //need to set for alternative channels
 var BOT_ACCOUNT_NAME = 'etherealBot';//need to set for alternative channels
-var APP_OAUTH_TOKEN = 'I_AM_SET_BY_CODE';
 var CHAT_CHANNEL_USER_ID = 'CHANGE_ME_TO_THE_CHAT_CHANNELS_USER_ID'; // This is the User ID of the channel that the bot will join and listen to chat messages of
 //What is the channel I am currently in?
 var optionalCommandPrefix = 'x';
 const EVENTSUB_WEBSOCKET_URL = 'wss://eventsub.wss.twitch.tv/ws';
-
+var currentDefaultSongNumber = 0;
 var websocketSessionID = "";
 var ethBotSettings;
 
@@ -143,7 +144,6 @@ var ethBotSettings;
 	// Verify that the authentication is valid
 	//await getOAUTH_TOKEN(); //
 	//CLIENT_ID = environment.CLIENT_ID;
-	//OAUTH_TOKEN = environment.TwitchOAuthAccessToken;
 	//await getAuth();
 
 	//await getUserIDs();
@@ -158,11 +158,11 @@ var ethBotSettings;
 export async function externalAccessCall(sentsharedService){
 
 	CLIENT_ID = environment.CLIENT_ID;
-	OAUTH_TOKEN = environment.TwitchOAuthAccessToken;
+	OAUTH_TOKEN = localStorage.getItem('etherealBotTwitchOAuthAccessToken');
 	CLIENT_SECRETID = environment.CLIENT_SECRETID;
 	sharedService = sentsharedService;
 	//await getAuth();
-	await getAppOAUTH_TOKEN();
+	//await getAppOAUTH_TOKEN();
 	await getAdministrativeUserIDs();
 	// Start WebSocket client and register handlers
 
@@ -206,8 +206,41 @@ async function initializeCommonSettings(sentSharedService){
 
 	let json = await playlistResponse.json();
 
-	ethBotSettings = new botSettings(json.data.lengthLimit, json.data.songsPerUser, json.data.streamChannel);
+	ethBotSettings = new botSettings(json.data.lengthLimit, json.data.songsPerUser, json.data.streamChannel, json.data.lengthLimitMod, json.data.songsPerUserMod);
 
+}
+
+export async function updateBotSettings(newSettings){
+	console.log("testing variable presence: " + STREAM_ACCOUNT_NAME);
+	const updateSettingsResponse = await fetch('http://localhost:3000/updateSettings', {
+		method: 'PUT',
+		headers: {
+			'Authorization': 'Bearer ' + OAUTH_TOKEN,
+			'Client-Id': CLIENT_ID,
+			'Content-Type': 'application/json'
+		},
+		
+		body: JSON.stringify({
+			userId: STREAM_ACCOUNT_NAME,
+			settings: newSettings,
+		}),
+	});
+	
+
+	if (updateSettingsResponse.status != 200) {
+		let data = await updateSettingsResponse.json();
+		console.log('My backend server errored out on the getSettings request.');
+		return false;
+	}
+
+	let json = await updateSettingsResponse.json();
+	console.log(json);
+	return true;
+}
+
+
+export function getBotSettings(){
+	return ethBotSettings;
 }
 
 export async function initializeWebSocket(sentSharedService){
@@ -240,9 +273,9 @@ export async function tryTwitchUserTokenRefresh(sentSharedService){
 	}
 
 	const json = await response.json();
-	environment.TwitchOAuthAccessToken = json.access_token;
 	localStorage.setItem('etherealBotTwitchOAuthAccessToken', json.access_token);
 	localStorage.setItem('etherealBotTwitchRefreshToken', json.refresh_token);
+	OAUTH_TOKEN = json.access_token;
 	loadPlaylistFromBackend(sentSharedService);
 	const websocketClient = startWebSocketClient();
 	return '';
@@ -270,7 +303,7 @@ async function updateActiveSongBackend(value){ //single YTVI
 	let response = await fetch('http://localhost:3000/currentSong', {
 		method: 'POST',
 		headers: {
-			'Authorization': 'Bearer ' + OAUTH_TOKEN, ///maybe APP_OAUTH_TOKEN?
+			'Authorization': 'Bearer ' + OAUTH_TOKEN,
 			'Client-Id': CLIENT_ID,
 			'Content-Type': 'application/json'
 		},
@@ -299,7 +332,7 @@ async function updateSongPlaylistBackend(value){ //multiple YTVI in order
 	let response = await fetch('http://localhost:3000/rearrangeSongs', {
 		method: 'POST',
 		headers: {
-			'Authorization': 'Bearer ' + OAUTH_TOKEN, ///maybe APP_OAUTH_TOKEN?
+			'Authorization': 'Bearer ' + OAUTH_TOKEN,
 			'Client-Id': CLIENT_ID,
 			'Content-Type': 'application/json'
 		},
@@ -324,7 +357,7 @@ async function	addTrackToBackend(newTrack){ //YTVI's latest
 	let response = await fetch('http://localhost:3000/addSong', {
 		method: 'POST',
 		headers: {
-			'Authorization': 'Bearer ' + OAUTH_TOKEN, ///maybe APP_OAUTH_TOKEN?
+			'Authorization': 'Bearer ' + OAUTH_TOKEN,
 			'Client-Id': CLIENT_ID,
 			'Content-Type': 'application/json'
 		},
@@ -343,9 +376,81 @@ async function	addTrackToBackend(newTrack){ //YTVI's latest
 	}
 }
 
+export async function addTrackToDefaultList(newTrack){
+	await addTrackToDefaultBackend(newTrack);
+}
 
-async function addToSongPlaylistBackend(){ //do we need this?
+export async function getNextDefaultTrack(){
+	//calls function with currentDefaultSongNumber
+
+	//expects YTVI & new currentDefaultSongNumber in return.
+			//currentDefaultSongNumber might be currentDefaultSongNumber++ or 0
+	const playlistResponse = await fetch('http://localhost:3000/nextDefaultTrack?userid=' + STREAM_ACCOUNT_NAME + '&trackno=' + currentDefaultSongNumber, {
+		method: 'GET',
+		headers: {
+			"Client-ID": CLIENT_ID,
+			"Authorization": "Bearer "+ OAUTH_TOKEN,
+		},
+	});
 	
+
+	if (playlistResponse.status != 200) {
+		let data = await playlistResponse.json();
+		console.log('My backend server errored out on playlist request.');
+	}
+
+	let json = await playlistResponse.json();
+	console.log(json.data);//this contains the data for the user's playlist
+
+	//updateCurrentSong here
+	// currentSong.uploadStatus = json.data.uploadStatus;
+	// currentSong.failureReason = json.data.failureReason;
+	// currentSong.rejectionReason = json.data.rejectionReason;
+	// currentSong.privacyStatus = json.data.privacyStatus;
+	// currentSong.license = json.data.license;
+	// currentSong.embeddable = json.data.embeddable;
+	// currentSong.publicStatsViewable = json.data.publicStatsViewable;
+	// currentSong.duration = json.data.duration;
+	// currentSong.songTitle = json.data.songTitle;
+	// currentSong.channelTitle = json.data.channelTitle;
+	// currentSong.videoId = json.data.videoId;
+	// currentSong.requestedBy = json.data.requestedBy;
+	// currentSong.position = json.data.position;
+	// currentSong.realTime = json.data.realTime;
+	// currentSong.addedTimestamp = json.data.addedTimestamp;
+
+	return json.data;
+
+
+
+}
+
+
+async function addTrackToDefaultBackend(newTrack){ //do we need this?
+	console.log("called addTrackToDefaultBackend");
+	console.log('newTrack in addTrackToDefaultBackend');
+	newTrack.requestedBy = "";
+	console.log(newTrack);
+	let response = await fetch('http://localhost:3000/addDefaultSong', {
+		method: 'POST',
+		headers: {
+			'Authorization': 'Bearer ' + OAUTH_TOKEN,
+			'Client-Id': CLIENT_ID,
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			newTrack: newTrack,
+			userId: STREAM_ACCOUNT_NAME,
+		})
+	});
+
+	if (response.status != 200) {
+		let data = await response.json();
+		console.error("Database communication failure: Failed to Add Default Track to Backend");
+		console.error(data);
+	} else {
+		console.log("Added New Default Song.");
+	}
 }
 
 //Unordered Top 10 VNs
@@ -371,37 +476,7 @@ async function addToSongPlaylistBackend(){ //do we need this?
 //Losers: 999, Arknights, Blue Archive, HSR, Majikoi, Nekopara, Higurashi, Higanbana, Nikke, Ace Attorney, DDLC
 
 // WebSocket will persist the application loop until you exit the program forcefully
-async function getAppOAUTH_TOKEN(){
-	// https://dev.twitch.tv/docs/authentication/validate-tokens/#how-to-validate-a-token
 
-	const response = await fetch('https://id.twitch.tv/oauth2/token', {
-		method: 'POST',
-		headers: {
-			"Content-Type": "application/json",
-			"Accept": "application/json",
-		},
-
-		body: JSON.stringify({"client_id": CLIENT_ID, "client_secret": CLIENT_SECRETID, "grant_type": "client_credentials",})
-
-
-	});
-	//.then(response => response.json()).then(data => APP_OAUTH_TOKEN=data.access_token);
-    
-
-	//console.log(data)
-
-
-	if (response.status != 200) {
-		let data = await response.json();
-		console.error("Token is not valid. /oauth2/token returned status code " + response.status);
-		console.error(data);
-	}
-
-	const json = await response.json();
-	let APP_OAUTH_TOKEN = json.access_token;
-	//console.log("OAUTH_TOKEN = " + OAUTH_TOKEN);
-	console.log(response.toString());
-}
 
 
 async function getAuth() {
@@ -586,7 +661,7 @@ async function removeSongFromBackend(track){
 	let response = await fetch('http://localhost:3000/deleteSong', {
 		method: 'POST',
 		headers: {
-			'Authorization': 'Bearer ' + OAUTH_TOKEN, ///maybe APP_OAUTH_TOKEN?
+			'Authorization': 'Bearer ' + OAUTH_TOKEN,
 			'Client-Id': CLIENT_ID,
 			'Content-Type': 'application/json'
 		},
@@ -954,28 +1029,104 @@ function addSongConfirmMessage(ytVI){
 	}
 }
 
+function addSongFailMessage(errorMessage, ytVI){
+	return "@" + ytVI.requestedBy + " I was unable to add your track to the queue. " + errorMessage;
+
+}
+
+async function isMod(userName){
+
+	//GET https://api.twitch.tv/helix/users
+	const userResponse = await fetch('https://api.twitch.tv/helix/users?&login=' + userName  , {
+		method: 'GET',
+		headers: {
+			"Client-ID": CLIENT_ID,
+			"Authorization": "Bearer "+ OAUTH_TOKEN,
+		},
+	});
+
+	if (userResponse.status != 200) {
+		let data = await userResponse.json();
+		console.log('Twitch errored out on isMod\'s userID request.');
+		return process.exit(1);
+	}
+
+	const json2 = await userResponse.json();
+	//console.log(json2.data);
+	let tempUserId = json2.data[0].id;
+
+	//GET https://api.twitch.tv/helix/moderation/moderators
+	//console.log('Calling isMod\n');
+	const moderatorResponse = await fetch('https://api.twitch.tv/helix/moderation/moderators?broadcaster_id='+ CHAT_CHANNEL_USER_ID +'&user_id=' + tempUserId  , {
+		method: 'GET',
+		headers: {
+			"Client-ID": CLIENT_ID,
+			"Authorization": "Bearer "+ OAUTH_TOKEN,
+		},
+	});
+    
+
+
+
+	if (moderatorResponse.status != 200) {
+		let data = await moderatorResponse.json();
+		console.log('Twitch errored out on isMod request.');
+		return process.exit(1);
+	}
+
+	const json = await moderatorResponse.json();
+	if (json.data.length > 0){
+		return true;
+	}
+	return false;
+
+}
+
+function isOwner(userName){
+	if (userName == STREAM_ACCOUNT_NAME){
+		return true;
+	}
+	return false;
+}
+
+
 async function validateVideoSettings(ytVI){
 
-	//console.log(youtubeVideoInfo.getRelativeDate(ethBotSettings.lengthLimit))
-	//console.log(youtubeVideoInfo.getRelativeDate(ytVI.duration))
-	if (ethBotSettings.lengthLimit != "-1"){
-		if ( youtubeVideoInfo.getRelativeDate(ytVI.duration) > youtubeVideoInfo.getRelativeDate(ethBotSettings.lengthLimit)){ ///good odds this needs changing.
-			console.log ("less than duration")
-			return false;
+	console.log("validateVideoSettings");
+	console.log(ethBotSettings.lengthLimit);
+
+	//need to get twitchInfo for requesting user
+	//display name = ytVI.requestedBy
+				//if mods can't override and not the Owner or mods can override and not mod or owner
+	if( (!(ethBotSettings.lengthLimitMod) && !(isOwner(ytVI.requestedBy))) || (ethBotSettings.modlengthlimit && !(await isMod(ytVI.requestedBy)) && !(isOwner(ytVI.requestedBy))) ){
+	
+		if (ethBotSettings.lengthLimit != "-1"){
+			console.log(youtubeVideoInfo.getRelativeDate(ytVI.duration).getTime());
+			console.log(youtubeVideoInfo.getRelativeDate(ethBotSettings.lengthLimit).getTime());
+
+			if ( youtubeVideoInfo.getRelativeDate(ytVI.duration).getTime() > youtubeVideoInfo.getRelativeDate(ethBotSettings.lengthLimit).getTime()){ ///good odds this needs changing.
+				console.log ("less than duration")
+				return "This track exceeds your maximum duration limit";
+			}
 		}
 	}
-	if(ethBotSettings.songsPerUser > -1 && playlistArray != null && playlistArray != undefined && playlistArray.length > 0){
-		
-		var userSongsCount = playlistArray.filter(p => p.requestedBy == ytVI.requestedBy).length;
-		if(userSongsCount > ethBotSettings.songsPerUser){
-			return false;
+
+	if( (!(ethBotSettings.songsPerUserMod) && !(isOwner(ytVI.requestedBy))) || (ethBotSettings.songsPerUserMod && !(await isMod(ytVI.requestedBy)) && !(isOwner(ytVI.requestedBy))) ){
+		if(ethBotSettings.songsPerUser > -1 && playlistArray != null && playlistArray != undefined && playlistArray.length > 0){
+			
+			var userSongsCount = playlistArray.filter(p => p.requestedBy == ytVI.requestedBy).length;
+			if(userSongsCount > ethBotSettings.songsPerUser){
+				return "Each person may only have " + ethBotSettings.songsPerUser + " tracks in the queue at once.";
+			}
 		}
 	}
-	return true;
+
+	return "Success";
 }
 
 
 async function addSongToQueue(songArg, sender){
+
 
 	if(isYoutubeURI(songArg)){
 		const regex = /^.*watch\?v=([A-Za-z0-9]*)(&.*)?$/i;
@@ -986,11 +1137,13 @@ async function addSongToQueue(songArg, sender){
 		ytVI.position = playlistArray.length + 1;
 
 		///////////////////validate video settings
-		if(validateVideoSettings(ytVI)){
+		var valResults = await validateVideoSettings(result);
+		if(valResults == "Success"){
 			playlistArray.push(ytVI);
 			sendChatMessage(addSongConfirmMessage(result));
 		} else{
-
+			sendChatMessage(addSongFailMessage(valResults, result));
+			return;
 		}	
 	}
 	else{
@@ -1000,11 +1153,13 @@ async function addSongToQueue(songArg, sender){
 			result.position = playlistArray.length + 1;
 
 			/////////////////validate video settings
-			if(validateVideoSettings(result)){
+			var valResults = await validateVideoSettings(result);
+			if(valResults == "Success"){
 				playlistArray.push(result);
 				sendChatMessage(addSongConfirmMessage(result));
 			} else{
-
+				sendChatMessage(addSongFailMessage(valResults, result));
+				return;
 			}
 		}
 		else{
@@ -1070,7 +1225,7 @@ async function sendChatMessage(chatMessage) {
 	let response = await fetch('https://api.twitch.tv/helix/chat/messages', {
 		method: 'POST',
 		headers: {
-			'Authorization': 'Bearer ' + OAUTH_TOKEN, ///maybe APP_OAUTH_TOKEN?
+			'Authorization': 'Bearer ' + OAUTH_TOKEN,
 			'Client-Id': CLIENT_ID,
 			'Content-Type': 'application/json'
 		},

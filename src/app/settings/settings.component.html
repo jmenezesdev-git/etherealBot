@@ -13,27 +13,27 @@
       </h1>
       <div class="eth-vertical-padding-small">
         <span>Max Song Length: Hours </span>
-        <input class="eth-number-input-format" id="inputSettingHours" placeholder="0" type="number">
+        <input class="eth-number-input-format" id="inputSettingHours" placeholder="0" type="number" [(ngModel)]="settingsHours">
         <span>Minutes </span>
-        <input class="eth-number-input-format" id="inputSettingMinutes" placeholder="0" type="number">
+        <input class="eth-number-input-format" id="inputSettingMinutes" placeholder="0" type="number" [(ngModel)]="settingsMins">
         <span>Seconds </span>
-        <input class="eth-number-input-format" id="inputSettingSeconds" placeholder="0" type="number">
+        <input class="eth-number-input-format" id="inputSettingSeconds" placeholder="0" type="number" [(ngModel)]="settingsSecs">
       </div>
       <div class="eth-vertical-padding-small">
         <span>Song Length Mod Exception: </span>
-        <input id="inputSettingLengthModException" type="checkbox"/>
+        <input id="inputSettingLengthModException" type="checkbox" [(ngModel)]="tempSettings.lengthLimitMod"/>
       </div>
       <div class="eth-vertical-padding-small">
         <span>Per User Song Limit </span>
-        <input class="eth-number-input-format" id="inputSettingCountLimit" placeholder="0" type="number">
+        <input class="eth-number-input-format" id="inputSettingCountLimit" placeholder="0" type="number" *ngIf="tempSettings" [(ngModel)]="tempSettings.songsPerUser">
       </div>
       <div class="eth-vertical-padding-small">
         <span>Song Limit Mod Exception: </span>
-        <input id="inputSettingCountModException" type="checkbox"/>
+        <input id="inputSettingCountModException" type="checkbox" [(ngModel)]="tempSettings.songsPerUserMod"/>
       </div>
     </div>
     <div>
-      <button class="w3-button eth-menu-button-li  eth-text-light-gray" (click)="saveSettings()">Save</button>
+      <button class="w3-button eth-menu-button-li eth-text-light-gray-imp eth-large-font" (click)="saveSettings()">Save</button>
     </div>
     
   </body>

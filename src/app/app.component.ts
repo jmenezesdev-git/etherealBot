@@ -4,9 +4,11 @@ import {ActivatedRoute, ParamMap, Router, RouterLink, RouterOutlet} from '@angul
 import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams, HttpClientModule, HttpParameterCodec  } from '@angular/common/http';
 import { catchError, throwError, Subscription, elementAt } from 'rxjs';
 import { environment } from './environment';
-import { externalAccessCall, peekPlaylist, popPlaylist, tester, clearCurrentSong, tryTwitchUserTokenRefresh, initializeWebSocket, getPlaylist, relocateItemInPlaylistArray, deletePlaylistAtLocation } from '../bot';
+import { externalAccessCall, peekPlaylist, popPlaylist, tester, clearCurrentSong, tryTwitchUserTokenRefresh, initializeWebSocket, getPlaylist, relocateItemInPlaylistArray, deletePlaylistAtLocation, getBotSettings, getNextDefaultTrack } from '../bot';
 import { youtubeVideoInfo } from './apiFunctions/youtube';
 import { SharedService } from './shared.service';
+import { NgIf } from '@angular/common';
+import { CommonModule } from '@angular/common';
 
 /*import {NgModule} from '@angular/core';
 import {YouTubePlayerModule} from '@angular/youtube-player'; //npm i @angular/youtube-player
@@ -62,7 +64,7 @@ export const DATAARR: youtubeVideoInfo[] = [
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [HomeComponent, RouterLink, RouterOutlet, HttpClientModule, FormsModule, YouTubePlayerModule, CdkDropList, CdkDrag, MatTableModule, MatIconModule, CdkMenuModule, SettingsComponent],
+  imports: [HomeComponent, RouterLink, RouterOutlet, HttpClientModule, FormsModule, YouTubePlayerModule, CdkDropList, CdkDrag, MatTableModule, MatIconModule, CdkMenuModule, SettingsComponent, CommonModule],
   templateUrl: './app.component.html',
   encapsulation: ViewEncapsulation.None,
   styleUrls: ['./app.component.css'],
@@ -120,6 +122,10 @@ export class AppComponent implements OnInit{
     deletePlaylistAtLocation(ytVI);
   }
 
+  addToDefault(ytVI: youtubeVideoInfo){
+    console.log("addToDefaultCalled")
+  }
+
   drop2(event: CdkDragDrop<string>) {
     if (this.dataSource2 != undefined){
       const previousIndex = this.dataSource2.findIndex(d => d === event.item.data);
@@ -130,7 +136,9 @@ export class AppComponent implements OnInit{
     }
   }
 
-
+  onSaveSettings(uncommittedSettings: botSettings){
+    this.ethBotSettingsCloseWindow();
+  }
 
 
   constructor(private router: Router, private route: ActivatedRoute, private http: HttpClient, private sharedService:SharedService){
@@ -215,7 +223,6 @@ export class AppComponent implements OnInit{
           if(value.hasOwnProperty('access_token')){
             this.accessToken = (value as MyObject).access_token;
             if(this.accessToken !== undefined){
-              environment.TwitchOAuthAccessToken = this.accessToken;
               localStorage.setItem('etherealBotTwitchOAuthAccessToken', this.accessToken);
             }
           }
@@ -350,6 +357,9 @@ export class AppComponent implements OnInit{
     }
     var dataTest:youtubeVideoInfo[] = [];
     this.dataSource2 = dataTest;
+    this.settings = getBotSettings();
+    console.log("In OnInit, this.settings = ");
+    console.log(this.settings);
     tester(this.sharedService);
 
   }
@@ -362,7 +372,6 @@ export class AppComponent implements OnInit{
     localStorage.setItem('etherealBotTwitchOAuthAccessToken', '');
     localStorage.setItem('etherealBotTwitchRefreshToken', '');
     localStorage.setItem('etherealBotProfileImageUrl', '');
-    environment.TwitchOAuthAccessToken = "";
     environment.TwitchOAuthRefreshToken = "";
     this.loggedIntoTwitch = false;
     this.connectTwitchVisibility = 'visible'
@@ -371,10 +380,12 @@ export class AppComponent implements OnInit{
   }
 
   ethBotSettingsMenuOpen(){
+    console.log("App Component this.settings = ");
+    console.log(this.settings);
     this.showSettings = "flex";
 
   }  
-  ethBotSettingsCancel(){
+  ethBotSettingsCloseWindow(){
     this.showSettings = "none";
   }
   ethBotSettingsSave(){
@@ -407,12 +418,12 @@ export class AppComponent implements OnInit{
       
   }
 
-  ytOnStateChange(event:YT.OnStateChangeEvent){//one of the state changes is pause/play
+  async ytOnStateChange(event:YT.OnStateChangeEvent){//one of the state changes is pause/play
     //this.player.playVideo();
     console.log("OnStateChange: " +event.data.toString());
     if (event.data.toString() == "0"){ //0=Video End? 1=play 2=pause? 3=load?  //-1 error? //5 loaded and ready?
       //pop ytList and order the next song?
-      var feedback = this.ytAttemptPlayNextSong();
+      var feedback = await this.ytAttemptPlayNextSong();
       if (feedback == ""){
         clearCurrentSong();
       }
@@ -446,7 +457,7 @@ export class AppComponent implements OnInit{
 
   }
 
-  ytAttemptPlayNextSong(){
+  async ytAttemptPlayNextSong(){
 
     //console.log('Going to next video');
     if (peekPlaylist() != undefined){
@@ -456,6 +467,11 @@ export class AppComponent implements OnInit{
       return peekPlaylist().videoId;
     }
     else{
+      var tempYTVI = await getNextDefaultTrack();
+      if (tempYTVI != undefined && tempYTVI != null){
+        return tempYTVI.videoId;
+      }
+
       console.log('Playlist is empty you fool!');
       return "";
     }
