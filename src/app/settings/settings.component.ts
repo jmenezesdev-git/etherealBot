@@ -4,8 +4,9 @@ import { botSettings } from 'src/botSettings';
 import { NgIf } from '@angular/common';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { updateBotSettings } from 'src/bot';
+import { getOAuthToken, getStreamAccountName } from 'src/bot';
 import { SettingsService } from './settingsService';
+import { updateBotSettings } from '../scripts/backendCalls';
 
 @Component({
   selector: 'app-settings',
@@ -134,7 +135,7 @@ tempSettings!: botSettings;
     //post to db
 
     if (this.tempSettings != undefined){
-      if(await updateBotSettings(this.tempSettings)){
+      if(await updateBotSettings(this.tempSettings, getOAuthToken(), getStreamAccountName())){
         console.log("updated Bot settings!");
         //this.settingsService.sendCloseSettingsEventHook(this.tempSettings);
       }

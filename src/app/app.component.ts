@@ -4,8 +4,8 @@ import {ActivatedRoute, ParamMap, Router, RouterLink, RouterOutlet} from '@angul
 import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams, HttpClientModule, HttpParameterCodec  } from '@angular/common/http';
 import { catchError, throwError, Subscription, elementAt } from 'rxjs';
 import { environment } from './environment';
-import { externalAccessCall, peekPlaylist, popPlaylist, tester, clearCurrentSong, tryTwitchUserTokenRefresh, initializeWebSocket, getPlaylist, relocateItemInPlaylistArray, deletePlaylistAtLocation, getBotSettings, getNextDefaultTrack } from '../bot';
-import { youtubeVideoInfo } from './apiFunctions/youtube';
+import { externalAccessCall, peekPlaylist, popPlaylist, tester, clearCurrentSong, tryTwitchUserTokenRefresh, initializeWebSocket, getPlaylist, relocateItemInPlaylistArray, deletePlaylistAtLocation, getBotSettings, getNextDefaultTrack, addTrackToDefaultList, playNextSong } from '../bot';
+import { youtubeVideoInfo } from './scripts/youtube';
 import { SharedService } from './shared.service';
 import { NgIf } from '@angular/common';
 import { CommonModule } from '@angular/common';
@@ -24,7 +24,7 @@ import { BrowserModule } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 
 //import { AppComponent } from './app.component';
-import { YouTubePlayerModule } from '@angular/youtube-player';
+import { YouTubePlayer, YouTubePlayerModule } from '@angular/youtube-player';
 
 import {CdkDragDrop, CdkDropList, CdkDrag, moveItemInArray} from '@angular/cdk/drag-drop';
 import { CdkContextMenuTrigger, CdkMenuModule } from '@angular/cdk/menu';
@@ -114,6 +114,12 @@ export class AppComponent implements OnInit{
   displayedColumns2: string[] = ['position', 'songname', 'duration', 'requestedby', 'channeltitle'];
   dataSource2 = DATAARR;//!:youtubeVideoInfo[]; //| undefined;
 
+  // @ViewChild('ytPlayer') child_component: YouTubePlayer;
+
+  // someMethod(){
+  //   this.child_component.getCurrentTime(); // Or any public method
+  // }
+
 
   rowDelete(ytVI: youtubeVideoInfo){
     // event: CdkContextMenuTrigger
@@ -123,7 +129,8 @@ export class AppComponent implements OnInit{
   }
 
   addToDefault(ytVI: youtubeVideoInfo){
-    console.log("addToDefaultCalled")
+    console.log("addToDefaultCalled");
+    addTrackToDefaultList(ytVI);
   }
 
   drop2(event: CdkDragDrop<string>) {
@@ -459,22 +466,7 @@ export class AppComponent implements OnInit{
 
   async ytAttemptPlayNextSong(){
 
-    //console.log('Going to next video');
-    if (peekPlaylist() != undefined){
-      //this.videoId = this.optionalInjectBackUpPlaylist(popPlaylist()).videoId;
-      this.sharedService.sendUpdateActiveSongHook(popPlaylist());
-      
-      return peekPlaylist().videoId;
-    }
-    else{
-      var tempYTVI = await getNextDefaultTrack();
-      if (tempYTVI != undefined && tempYTVI != null){
-        return tempYTVI.videoId;
-      }
-
-      console.log('Playlist is empty you fool!');
-      return "";
-    }
+    return await playNextSong();
   }
 
   ytBackButton(){
@@ -494,6 +486,11 @@ export class AppComponent implements OnInit{
     //newTrack:youtubeVideoInfo
     // console.log('running updateActiveSong');
     this.updateDragDropRenumber(getPlaylist());
+
+    if (this.videoId == ytVI.videoId){
+      this.player.seekTo(0, true);
+    }
+
     this.videoId = ytVI.videoId;
   }
   
@@ -504,9 +501,6 @@ export class AppComponent implements OnInit{
   }
   
   updateDragDrop(ytVI:youtubeVideoInfo[]){
-    //console.log('updateDragDrop'); 
-    //console.log(ytVI);
-
     //setting mandatory values for display purposes only. SHOULD NEVER IMPACT underlying data 
     // ytVI.forEach((element, index)=> {
       // element.position = index + 1;
@@ -518,8 +512,6 @@ export class AppComponent implements OnInit{
   }
 
   updateDragDropRenumber(ytVI:youtubeVideoInfo[]){
-    //console.log('updateDragDrop'); 
-    //console.log(ytVI);
 
     //setting mandatory values for display purposes only. SHOULD NEVER IMPACT underlying data 
     ytVI.forEach((element, index)=> {

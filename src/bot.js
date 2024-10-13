@@ -1,11 +1,11 @@
 import { first, queue, share } from 'rxjs';
 import {environment} from './app/environment';
-import { getFirstYoutubeResult, getYoutubeVideoByID, youtubeVideoInfo } from './app/apiFunctions/youtube';
+import { getFirstYoutubeResult, getYoutubeVideoByID, youtubeVideoInfo } from './app/scripts/youtube';
 import {AppComponent} from './app/app.component';
 import { SharedService } from './app/shared.service';
 import { moveItemInArray } from '@angular/cdk/drag-drop';
 import { botSettings } from './botSettings';
-
+import {addTrackToDefaultBackend} from './app/scripts/backendCalls'
 
 
 
@@ -27,12 +27,16 @@ COMPLETED
 #	!xsr <required>		///add arg1 to song queue, when in doubt it is YT song.
 #	!xsong 				///Indicates currently playing song information
 	!xwrongsong			///removes users latest song from queue
+	!xskip				///Mod only skip current song (same as next)
+#	Default Playlist	///Plays when there are no songs in queue
+						///first song is the default when a user logs in or opens the page
 Frontend Settings interface
 	Mod override
 #	Length Limit
 #	Duration Limit
 #	Drag & Drop interface to reorder?
 	List includes the following:
+		Option to add to default Queue
 		Video/Song Name
 		Requested By
 		Duration
@@ -53,21 +57,15 @@ L	= Low Priority
 
 
 
-URGENT: Default Playlist
-NEXT: 
+URGENT:
+NEXT:
 THEN:
 Frontend Queue interface
-#	Drag & Drop interface to reorder?
-	List includes the following:
-		Option to add to default Queue
-#	Default Playlist	///Plays when there are no songs in queue
-						///first song is the default when a user logs in or opens the page
 	Total Time Per User	///Limits Queue capacity per user to X minutes/hours
 L	Voteskip Count
 L	Disabling commands	
 L	Enable Spotify/YT 	
 Chat Commands
-	!xskip				///Mod only skip current song (same as next)
 	!xlimit <optional>  ///Sets Limits to song requests per user defaults to infinite
 L	!xsonglist			///link to dynamic page containing a readonly view of the current queue
 L		Support Spotify as well as YT
@@ -79,6 +77,9 @@ L	!lastsong<optional>	///Get song information of nth past song, indicates total 
 						///resets on what, login? 12h?
 L	!xAddDef			///Mod only adds to default playlist
 L	Convert &#<number>; to correct text
+DJ
+	Extra bot-only DJ role
+	New custom settings IE higher song limits, ability to skip tracks, etc
 Youtube
 	Rework Youtube.ts to use https://www.npmjs.com/package/ytdl-core so we never run out of API calls.
 Security
@@ -210,33 +211,13 @@ async function initializeCommonSettings(sentSharedService){
 
 }
 
-export async function updateBotSettings(newSettings){
-	console.log("testing variable presence: " + STREAM_ACCOUNT_NAME);
-	const updateSettingsResponse = await fetch('http://localhost:3000/updateSettings', {
-		method: 'PUT',
-		headers: {
-			'Authorization': 'Bearer ' + OAUTH_TOKEN,
-			'Client-Id': CLIENT_ID,
-			'Content-Type': 'application/json'
-		},
-		
-		body: JSON.stringify({
-			userId: STREAM_ACCOUNT_NAME,
-			settings: newSettings,
-		}),
-	});
-	
-
-	if (updateSettingsResponse.status != 200) {
-		let data = await updateSettingsResponse.json();
-		console.log('My backend server errored out on the getSettings request.');
-		return false;
-	}
-
-	let json = await updateSettingsResponse.json();
-	console.log(json);
-	return true;
+export function getStreamAccountName(){
+	return STREAM_ACCOUNT_NAME;
 }
+export function getOAuthToken(){
+	return OAUTH_TOKEN;
+}
+
 
 
 export function getBotSettings(){
@@ -377,14 +358,11 @@ async function	addTrackToBackend(newTrack){ //YTVI's latest
 }
 
 export async function addTrackToDefaultList(newTrack){
-	await addTrackToDefaultBackend(newTrack);
+	await addTrackToDefaultBackend(newTrack, OAUTH_TOKEN, STREAM_ACCOUNT_NAME);
 }
 
 export async function getNextDefaultTrack(){
-	//calls function with currentDefaultSongNumber
-
-	//expects YTVI & new currentDefaultSongNumber in return.
-			//currentDefaultSongNumber might be currentDefaultSongNumber++ or 0
+	// console.log("currentDefaultSongNumber in getNextDef....= " + currentDefaultSongNumber);
 	const playlistResponse = await fetch('http://localhost:3000/nextDefaultTrack?userid=' + STREAM_ACCOUNT_NAME + '&trackno=' + currentDefaultSongNumber, {
 		method: 'GET',
 		headers: {
@@ -400,58 +378,75 @@ export async function getNextDefaultTrack(){
 	}
 
 	let json = await playlistResponse.json();
-	console.log(json.data);//this contains the data for the user's playlist
+	console.log(json);//this contains the data for the user's playlist
 
 	//updateCurrentSong here
-	// currentSong.uploadStatus = json.data.uploadStatus;
-	// currentSong.failureReason = json.data.failureReason;
-	// currentSong.rejectionReason = json.data.rejectionReason;
-	// currentSong.privacyStatus = json.data.privacyStatus;
-	// currentSong.license = json.data.license;
-	// currentSong.embeddable = json.data.embeddable;
-	// currentSong.publicStatsViewable = json.data.publicStatsViewable;
-	// currentSong.duration = json.data.duration;
-	// currentSong.songTitle = json.data.songTitle;
-	// currentSong.channelTitle = json.data.channelTitle;
-	// currentSong.videoId = json.data.videoId;
-	// currentSong.requestedBy = json.data.requestedBy;
-	// currentSong.position = json.data.position;
-	// currentSong.realTime = json.data.realTime;
-	// currentSong.addedTimestamp = json.data.addedTimestamp;
+	if(json.hasOwnProperty("data")){
+		if(json.data.hasOwnProperty("trackInfo")){
+			if(json.data.trackInfo.hasOwnProperty("uploadStatus")){
+				console.log(json.data.trackInfo.uploadStatus);
+				currentSong.uploadStatus = json.data.trackInfo.uploadStatus;
+			}
+			if(json.data.trackInfo.hasOwnProperty("failureReason")){
+				currentSong.failureReason = json.data.trackInfo.failureReason;
+			}
+			if(json.data.trackInfo.hasOwnProperty("rejectionReason")){
+				currentSong.rejectionReason = json.data.trackInfo.rejectionReason;
+			}
+			if(json.data.trackInfo.hasOwnProperty("privacyStatus")){
+				currentSong.privacyStatus = json.data.trackInfo.privacyStatus;
+			}
+			if(json.data.trackInfo.hasOwnProperty("license")){
+				currentSong.license = json.data.trackInfo.license;
+			}
+			if(json.data.trackInfo.hasOwnProperty("embeddable")){
+				currentSong.embeddable = json.data.trackInfo.embeddable;
+			}
+			if(json.data.trackInfo.hasOwnProperty("publicStatsViewable")){
+				currentSong.publicStatsViewable = json.data.trackInfo.publicStatsViewable;
+			}
+			if(json.data.trackInfo.hasOwnProperty("duration")){
+				currentSong.duration = json.data.trackInfo.duration;
+			}
+			if(json.data.trackInfo.hasOwnProperty("songTitle")){
+				currentSong.songTitle = json.data.trackInfo.songTitle;
+			}
+			if(json.data.trackInfo.hasOwnProperty("channelTitle")){
+				currentSong.channelTitle = json.data.trackInfo.channelTitle;
+			}
+			if(json.data.trackInfo.hasOwnProperty("videoId")){
+				currentSong.videoId = json.data.trackInfo.videoId;
+			}
+			if(json.data.trackInfo.hasOwnProperty("requestedBy")){
+				currentSong.requestedBy = json.data.trackInfo.requestedBy;
+			}
+			if(json.data.trackInfo.hasOwnProperty("position")){
+				currentSong.position = json.data.trackInfo.position;
+			}
+			if(json.data.trackInfo.hasOwnProperty("realTime")){
+				currentSong.realTime = json.data.trackInfo.realTime;
+			}
+			if(json.data.trackInfo.hasOwnProperty("addedTimestamp")){
+				currentSong.addedTimestamp = json.data.trackInfo.addedTimestamp;
+			}
+		}
+		if(json.data.hasOwnProperty("trackNo")){
+			currentDefaultSongNumber = json.data.trackNo;
+		}
 
-	return json.data;
-
-
-
-}
-
-
-async function addTrackToDefaultBackend(newTrack){ //do we need this?
-	console.log("called addTrackToDefaultBackend");
-	console.log('newTrack in addTrackToDefaultBackend');
-	newTrack.requestedBy = "";
-	console.log(newTrack);
-	let response = await fetch('http://localhost:3000/addDefaultSong', {
-		method: 'POST',
-		headers: {
-			'Authorization': 'Bearer ' + OAUTH_TOKEN,
-			'Client-Id': CLIENT_ID,
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-			newTrack: newTrack,
-			userId: STREAM_ACCOUNT_NAME,
-		})
-	});
-
-	if (response.status != 200) {
-		let data = await response.json();
-		console.error("Database communication failure: Failed to Add Default Track to Backend");
-		console.error(data);
-	} else {
-		console.log("Added New Default Song.");
+		if(json.data.hasOwnProperty("trackInfo")){
+			return json.data.trackInfo;
+		}
+	
 	}
+
+
+
+
 }
+
+
+
 
 //Unordered Top 10 VNs
 //Umineko
@@ -615,18 +610,21 @@ function handleWebSocketMessage(data) {
 					if (startsWith('!'+ optionalCommandPrefix +'sr', messageText)){
 						addSongToQueue(getFirstArgOfCommand(messageText), sender);
 
-					} else if (startsWith('!'+ optionalCommandPrefix +'nextSong', messageText)){
+					} else if (startsWith('!'+ optionalCommandPrefix +'nextsong', messageText)){
 						
-						nextSongInQueue();
+						nextSongInQueue(sender);
 
 					} else if (startsWith('!'+ optionalCommandPrefix +'song', messageText)){
 						if (currentSong != undefined && currentSong != null){
-							sendChatMessage('The current song is ' + currentSong.songTitle + ' by ' + currentSong.channelTitle + '. It was requested by' + currentSong.requestedBy + '.' + ' https://youtu.be/' + currentSong.videoId);
+							sendChatMessage('The current song is ' + currentSong.songTitle + ' by ' + currentSong.channelTitle + '. It was requested by ' + currentSong.requestedBy + '.' + ' https://youtu.be/' + currentSong.videoId);
 						} else{
 							sendChatMessage('There is no current song!');
 						}
 					} else if (startsWith('!'+ optionalCommandPrefix +'wrongsong', messageText)){
 						wrongSong(sender);
+					}
+					else if(startsWith('!'+ optionalCommandPrefix +'cutdefault', messageText)){
+						removeFromDefaultPlaylist(sender);
 					}
 					break;
 			}
@@ -673,10 +671,10 @@ async function removeSongFromBackend(track){
 
 	if (response.status != 200) {
 		let data = await response.json();
-		console.error("Database communication failure: Failed to Add Track to Backend");
+		console.error("Database communication failure: Failed to Remove track from Backend");
 		console.error(data);
 	} else {
-		console.log("Added New Song.");
+		console.log("Removed Song.");
 	}
 
 }
@@ -740,11 +738,12 @@ export function pushPlaylist(message, sharedServiceArg){
 		addSongToQueue(message, STREAM_ACCOUNT_NAME);
 }
 
-export function deletePlaylistAtLocation(ytVideoInfo){
+export async function deletePlaylistAtLocation(ytVideoInfo){
 
 	console.log('Removed:' + playlistArray.splice(ytVideoInfo.position -1, 1));
 	console.log(sharedService);
-	sharedService.sendUpdateDragDropSongHook(playlistArray);
+	await removeSongFromBackend(ytVideoInfo);
+	await sharedService.sendUpdateDragDropSongHook(playlistArray);
 }
 
 export function peekPlaylist(){
@@ -755,10 +754,65 @@ export function peekPlaylistN(location){
 	return playlistArray.at(location);
 }
 
-function nextSongInQueue(){
-	console.log('Not ready yet!')
-	sendChatMessage('The next song in queue feature is not available yet!')
+function nextSongInQueue(sender){
+	//console.log('Not ready yet!')
+	//sendChatMessage('The next song in queue feature is not available yet!')
+	if(isMod(sender) || isOwner(sender)){
+		return playNextSong();
+	}
+
 }
+
+export async function playNextSong(){
+	if (peekPlaylist() != undefined){
+		sharedService.sendUpdateActiveSongHook(popPlaylist());
+		
+		return peekPlaylist().videoId;
+	  }
+	  else{
+		var tempYTVI = await getNextDefaultTrack();
+		if (tempYTVI != undefined && tempYTVI != null){
+		  console.log("tempVI is defined");
+		  console.log(tempYTVI);
+		  sharedService.sendUpdateActiveSongHook(tempYTVI);
+		  return tempYTVI.videoId;
+		}
+  
+		console.log('Playlist is empty you fool!');
+		return "";
+	  }
+}
+
+async function removeFromDefaultPlaylist(){
+	//Untested
+	console.log('remove from DefaultPlaylist');
+	console.log(track);
+	let response = await fetch('http://localhost:3000/deleteDefault', {
+		method: 'POST',
+		headers: {
+			'Authorization': 'Bearer ' + OAUTH_TOKEN,
+			'Client-Id': CLIENT_ID,
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			track: currentSong,
+			userId: STREAM_ACCOUNT_NAME,
+		})
+	});
+
+	if (response.status != 200) {
+		let data = await response.json();
+		console.error("Database communication failure: Failed to Remove track from Backend");
+		console.error(data);
+	} else {
+		console.log("Removed Song.");
+	}
+
+
+
+}
+
+
 
 //INCOMPLETE
 function isYoutubeURI(messageText){
@@ -888,9 +942,16 @@ async function loadPlaylistFromBackend(sharedServiceArg){
 			sharedService.sendUpdateActiveSongHookNoDB(currentSong);
 			console.log('rantempCurrentSongStuff');
 	}
-	if (currentSong == null || currentSong == undefined && playlistArray.length > 0){
+	if ((currentSong == null || currentSong == undefined) && playlistArray.length > 0){
 		console.log('getting a new currentSong I hope');
 		sharedService.sendUpdateActiveSongHook(popPlaylist());
+	}
+	if ((currentSong == null || currentSong == undefined) && playlistArray.length <= 0){
+		var tempYTVI = await getNextDefaultTrack();
+		console.log("currentDefaultSongNumber = " + currentDefaultSongNumber);
+		if (tempYTVI != undefined && tempYTVI != null){
+			sharedService.sendUpdateActiveSongHook(tempYTVI);
+		}
 	}
 	sharedService.sendUpdateDragDropSongHook(playlistArray);
 }
@@ -1127,22 +1188,29 @@ async function validateVideoSettings(ytVI){
 
 async function addSongToQueue(songArg, sender){
 
-
+console.log("in addSongToQueue");
 	if(isYoutubeURI(songArg)){
-		const regex = /^.*watch\?v=([A-Za-z0-9]*)(&.*)?$/i;
+		console.log("TopHalf");
+		const regex = /^.*watch\?v=([A-Za-z0-9-_]*)(\W.*)?$/i;
 		songArg = songArg.replace(regex, "$1");
-		ytVI = new youtubeVideoInfo(songArg, "", "");
-		await getYoutubeVideoByID(new youtubeVideoInfo(songArg, "", ""));
+		console.log("songArg = " + songArg);
+		var ytVI = new youtubeVideoInfo(songArg, "", "");
+		await getYoutubeVideoByID(ytVI);
+		console.log(sender);
 		ytVI.requestedBy = sender;
+		console.log('ytVI.RequestedBy = ' + ytVI.requestedBy);
 		ytVI.position = playlistArray.length + 1;
 
 		///////////////////validate video settings
-		var valResults = await validateVideoSettings(result);
+		console.log("pre-validation");
+		var valResults = await validateVideoSettings(ytVI);
+		console.log("validation results = " + valResults);
+		console.log(ytVI);
 		if(valResults == "Success"){
 			playlistArray.push(ytVI);
-			sendChatMessage(addSongConfirmMessage(result));
+			sendChatMessage(addSongConfirmMessage(ytVI));
 		} else{
-			sendChatMessage(addSongFailMessage(valResults, result));
+			sendChatMessage(addSongFailMessage(valResults, ytVI));
 			return;
 		}	
 	}

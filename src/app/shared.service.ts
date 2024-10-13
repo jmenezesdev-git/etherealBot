@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
-import {youtubeVideoInfo} from './apiFunctions/youtube'
+import {youtubeVideoInfo} from './scripts/youtube'
 
 @Injectable({
   providedIn: 'root'

@@ -73,12 +73,17 @@ export async function getYoutubeVideoByID(ytVI:youtubeVideoInfo){
 
 
 	const json = await response.json();
-	// console.log (json);
+	console.log ("getYoutubeVideoByID contents = ");
+	 console.log (json);
 	if (json.hasOwnProperty("items")){
 		if (json.items[0].hasOwnProperty("snippet") && ytVI.songTitle == "" ){
 			if (json.items[0].snippet.hasOwnProperty("title")){
 				ytVI.songTitle = json.items[0].snippet.title;
 			}
+			if (json.items[0].snippet.hasOwnProperty("channelTitle")){
+				ytVI.channelTitle = json.items[0].snippet.channelTitle;
+			}
+			
 		}
 		if (json.items[0].hasOwnProperty("contentDetails")){
 			if (json.items[0].contentDetails.hasOwnProperty("duration")){
@@ -136,6 +141,7 @@ export class youtubeVideoInfo{
 	position = -1;
 	realTime = "";
 	addedTimestamp = "";
+	private static readonly regexp = /PT((\d+)DT)?((\d+)H)?((\d+)M)?((\d+)S)?/g; 
 
 	constructor(videoId: string, songTitle: string, channelTitle: string){
 		this.videoId = videoId;
@@ -156,12 +162,11 @@ export class youtubeVideoInfo{
 		var hours = 0;
 		var minutes = 0;
 		var seconds = 0;
-		const regexp = /PT((\d+)DT)?((\d+)H)?((\d+)M)?(\d+)S/g;
 
 		if (this.duration != null && this.duration != undefined && this.duration.length > 0){
-			let matches = this.duration.matchAll(regexp);
+			let matches = this.duration.matchAll(youtubeVideoInfo.regexp);
 			for (const match of matches) {
-				if (match.length > 7){
+				if (match.length > 8){
 					if(match[2] != undefined){
 						days += Number(match[2]);
 					}
@@ -171,8 +176,8 @@ export class youtubeVideoInfo{
 					if (match[6] != undefined){
 						minutes += Number(match[6]);
 					}
-					if (match[7] != undefined){
-						seconds += Number(match[7]);
+					if (match[8] != undefined){
+						seconds += Number(match[8]);
 					}
 				}
 			}
@@ -213,10 +218,9 @@ export class youtubeVideoInfo{
 		var hours = 0;
 		var minutes = 0;
 		var seconds = 0;
-		const regexp = /PT((\d+)DT)?((\d+)H)?((\d+)M)?(\d+)S/g;
 
 		if (ytTimeVal != null && ytTimeVal != undefined && ytTimeVal.length > 0){
-			let matches = ytTimeVal.matchAll(regexp);
+			let matches = ytTimeVal.matchAll(youtubeVideoInfo.regexp);
 			for (const match of matches) {
 				if (match.length > 7){
 					if(match[2] != undefined){
@@ -228,8 +232,8 @@ export class youtubeVideoInfo{
 					if (match[6] != undefined){
 						minutes += Number(match[6]);
 					}
-					if (match[7] != undefined){
-						seconds += Number(match[7]);
+					if (match[8] != undefined){
+						seconds += Number(match[8]);
 					}
 				}
 			}
@@ -259,10 +263,9 @@ export class youtubeVideoInfo{
 		var hours = 0;
 		var minutes = 0;
 		var seconds = 0;
-		const regexp = /PT((\d+)DT)?((\d+)H)?((\d+)M)?(\d+)S/g;
 
 		if (ytTimeVal != null && ytTimeVal != undefined && ytTimeVal.length > 0){
-			let matches = ytTimeVal.matchAll(regexp);
+			let matches = ytTimeVal.matchAll(youtubeVideoInfo.regexp);
 			for (const match of matches) {
 				if (match.length > 7){
 					if(match[2] != undefined){
