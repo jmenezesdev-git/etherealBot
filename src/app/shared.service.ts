@@ -49,6 +49,25 @@ export class SharedService {
     return this.subject2_2.asObservable();
   }
 
+  private subject3 = new Subject<any>();
+  SendPlaylistResumeRequest() {
+    //console.log('SendPlaylistResumeRequest');
+    this.subject3.next(null);
+  }
+  GetPlaylistResumeRequest(): Observable<any>{ 
+    //console.log('GetPlaylistResumeRequest');
+    return this.subject3.asObservable();
+  }
+
+  private subject4 = new Subject<any>();
+  SendPlaylistPauseRequest() {
+    //console.log('SendPlaylistPauseRequest');
+    this.subject4.next(null);
+  }
+  GetPlaylistPauseRequest(): Observable<any>{ 
+    //console.log('GetPlaylistPauseRequest');
+    return this.subject4.asObservable();
+  }
 
 
   

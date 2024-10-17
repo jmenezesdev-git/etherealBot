@@ -4,36 +4,25 @@ import {ActivatedRoute, ParamMap, Router, RouterLink, RouterOutlet} from '@angul
 import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams, HttpClientModule, HttpParameterCodec  } from '@angular/common/http';
 import { catchError, throwError, Subscription, elementAt } from 'rxjs';
 import { environment } from './environment';
-import { externalAccessCall, peekPlaylist, popPlaylist, tester, clearCurrentSong, tryTwitchUserTokenRefresh, initializeWebSocket, getPlaylist, relocateItemInPlaylistArray, deletePlaylistAtLocation, getBotSettings, getNextDefaultTrack, addTrackToDefaultList, playNextSong } from '../bot';
+import { externalAccessCall, tester, clearCurrentSong, tryTwitchUserTokenRefresh, initializeWebSocket, getBotSettings} from '../bot';
 import { youtubeVideoInfo } from './scripts/youtube';
 import { SharedService } from './shared.service';
+import { playlistDragDropService } from './playlistDragDrop/playlistDragDropService';
 import { NgIf } from '@angular/common';
 import { CommonModule } from '@angular/common';
 
-/*import {NgModule} from '@angular/core';
-import {YouTubePlayerModule} from '@angular/youtube-player'; //npm i @angular/youtube-player
-import { BrowserModule } from '@angular/platform-browser';
-import { FormsModule } from '@angular/forms';
-@NgModule({
-  imports: [BrowserModule, FormsModule, YouTubePlayerModule],
-  declarations: [AppComponent],
-  bootstrap: [AppComponent],
-})*/
 import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 
 //import { AppComponent } from './app.component';
 import { YouTubePlayer, YouTubePlayerModule } from '@angular/youtube-player';
-
-import {CdkDragDrop, CdkDropList, CdkDrag, moveItemInArray} from '@angular/cdk/drag-drop';
 import { CdkContextMenuTrigger, CdkMenuModule } from '@angular/cdk/menu';
 
-
-import {MatTable, MatTableModule} from '@angular/material/table';
-import {MatIconModule} from '@angular/material/icon';
 import { SettingsComponent } from "./settings/settings.component";
+import { playlistDragDropComponent } from "./playlistDragDrop/playlistDragDrop.component";
 import { botSettings } from 'src/botSettings';
+import { decodeTextForOutput, playNextSong } from './scripts/botSupportingFunctions';
 
 // @NgModule({
 //   imports: [BrowserModule, FormsModule, YouTubePlayerModule],
@@ -41,7 +30,6 @@ import { botSettings } from 'src/botSettings';
 //   bootstrap: [AppComponent],
 // })
 
-// BrowserModule,
 export interface youtubeVideoInfoDisplay {
   position: string;
   videoId: string;
@@ -51,20 +39,10 @@ export interface youtubeVideoInfoDisplay {
 }
 
 
-export const DATAARR: youtubeVideoInfo[] = [
-  // export const DATAARR: youtubeVideoInfoDisplay[] = [
-  // {position: 1, rejectionReason: "", videoId:"gXCI8vJTjqA", duration: "PT5M56S", uploadStatus: "processed", failureReason: "", privacyStatus: "", channelTitle: "", embeddable: true, license: "youtube", publicStatsViewable:true, requestedBy:"etherealAffairs", songTitle:"【公式】【東方Vocal】幽閉サテライト / 華鳥風月/歌唱senya【FullMV】（原曲：六十年目の東方裁判 ～ Fate of Sixty Years）"},
-  // {position: 2, rejectionReason: "", videoId:"gXCI8vJTjqA", duration: "PT5M56S", uploadStatus: "processed", failureReason: "", privacyStatus: "", channelTitle: "", embeddable: true, license: "youtube", publicStatsViewable:true, requestedBy:"testUser", songTitle:"【公式】【東方Vocal】幽閉サテライト / 華鳥風月/歌唱senya【FullMV】（原曲：六十年目の東方裁判 ～ Fate of Sixty Years）"},
-  // {position: "1", videoId:"gXCI8vJTjqA", duration: "PT5M56S", requestedBy:"etherealAffairs", songTitle:"【公式】【東方Vocal】幽閉サテライト / 華鳥風月/歌唱senya【FullMV】（原曲：六十年目の東方裁判 ～ Fate of Sixty Years）"},
-  // {position: "2", videoId:"gXCI8vJTjqA", duration: "PT5M56S", requestedBy:"TestUser", songTitle:"【公式】【東方Vocal】幽閉サテライト / 華鳥風月/歌唱senya【FullMV】（原曲：六十年目の東方裁判 ～ Fate of Sixty Years）"},];
-]; 
-
-
-
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [HomeComponent, RouterLink, RouterOutlet, HttpClientModule, FormsModule, YouTubePlayerModule, CdkDropList, CdkDrag, MatTableModule, MatIconModule, CdkMenuModule, SettingsComponent, CommonModule],
+  imports: [HomeComponent, RouterLink, RouterOutlet, HttpClientModule, FormsModule, YouTubePlayerModule, CdkMenuModule, SettingsComponent, playlistDragDropComponent, CommonModule],
   templateUrl: './app.component.html',
   encapsulation: ViewEncapsulation.None,
   styleUrls: ['./app.component.css'],
@@ -108,79 +86,26 @@ export class AppComponent implements OnInit{
   startSeconds = 60;
   endSeconds = 120;
 
-  @ViewChild('table2', { static: true })
-  table2!: MatTable<youtubeVideoInfo>;
-
-  displayedColumns2: string[] = ['position', 'songname', 'duration', 'requestedby', 'channeltitle'];
-  dataSource2 = DATAARR;//!:youtubeVideoInfo[]; //| undefined;
-
   // @ViewChild('ytPlayer') child_component: YouTubePlayer;
 
-  // someMethod(){
-  //   this.child_component.getCurrentTime(); // Or any public method
-  // }
-
-
-  rowDelete(ytVI: youtubeVideoInfo){
-    // event: CdkContextMenuTrigger
-    //console.log()
-    console.log(ytVI);
-    deletePlaylistAtLocation(ytVI);
-  }
-
-  addToDefault(ytVI: youtubeVideoInfo){
-    console.log("addToDefaultCalled");
-    addTrackToDefaultList(ytVI);
-  }
-
-  drop2(event: CdkDragDrop<string>) {
-    if (this.dataSource2 != undefined){
-      const previousIndex = this.dataSource2.findIndex(d => d === event.item.data);
-
-      //this.dataSource2[previousIndex].position = event.currentIndex + 1;
-      relocateItemInPlaylistArray(previousIndex, event.currentIndex);
-      //this.table2.renderRows(); This function redraws the table rows
-    }
-  }
 
   onSaveSettings(uncommittedSettings: botSettings){
     this.ethBotSettingsCloseWindow();
   }
 
 
-  constructor(private router: Router, private route: ActivatedRoute, private http: HttpClient, private sharedService:SharedService){
-    //, private ytPlayerVars: YT.PlayerVars
-    // this.clickEventsubscription = 
-
+  constructor(private router: Router, private route: ActivatedRoute, private http: HttpClient, private sharedService:SharedService, private playlistDragDropService:playlistDragDropService){
     this.sharedService.GetUpdateActiveSongHook().subscribe((value)=>{
       this.updateActiveSong(value);});
     this.sharedService.GetUpdateActiveSongHookNoDB().subscribe((value)=>{
       this.updateActiveSong(value);});
-    this.sharedService.GetUpdateDragDropSongHook().subscribe((value)=>{
-      this.updateDragDrop(value);
-    });
-    this.sharedService.GetUpdateDragDropSongHookRenumber().subscribe((value)=>{
-      this.updateDragDropRenumber(value);
-    });
-
-    
-
+      
+    this.sharedService.GetPlaylistPauseRequest().subscribe((value)=>{
+      this.pausePlaylist();});
+    this.sharedService.GetPlaylistResumeRequest().subscribe((value)=>{
+      this.resumePlaylist();});
   }
 
-
-  private handleError(error: HttpErrorResponse) {
-    if (error.status === 0) {
-      // A client-side or network error occurred. Handle it accordingly.
-      console.error('An error occurred:', error.error);
-    } else {
-      // The backend returned an unsuccessful response code.
-      // The response body may contain clues as to what went wrong.
-      console.error(
-        `Backend returned code ${error.status}, body was: `, error.error);
-    }
-    // Return an observable with a user-facing error message.
-    return throwError(() => new Error('Something bad happened; please try again later.'));
-  }
 
   httpOptions = {
     headers: new HttpHeaders({
@@ -194,12 +119,8 @@ export class AppComponent implements OnInit{
     headers: new HttpHeaders({
       'Content-Type':  'image/webp',
 			"Accept": "application/json"
-      //Authorization: 'my-auth-token'
     })
   };
-  
-
-  
 
   private async responseToTwitchCodeRedirect(code: string | null){
 
@@ -247,7 +168,6 @@ export class AppComponent implements OnInit{
             }
           }
           if(value.hasOwnProperty('scope')){
-            //this.scope = value.get('scope');
             this.scope = (value as MyObject).scope;
 
             //var enc = new TextEncoder(); // always utf-8
@@ -257,7 +177,6 @@ export class AppComponent implements OnInit{
             this.token_type = (value as MyObject).token_type;
           }
           console.log(this.scope);
-          //console.log(environment.TwitchOAuthAccessToken);
           //post based on retrieved information. I think?
           
           (async () => {
@@ -277,21 +196,18 @@ export class AppComponent implements OnInit{
           })();
 
       
-          console.log('etherealBotBotUserId = ' + localStorage.getItem('etherealBotBotUserId'));
-          console.log('etherealBotChatChannelUserId = ' + localStorage.getItem('etherealBotChatChannelUserId'));
-          console.log('etherealBotStreamAccountName = ' + localStorage.getItem('etherealBotStreamAccountName'));
-          console.log('etherealBotTwitchOAuthAccessToken = ' + localStorage.getItem('etherealBotTwitchOAuthAccessToken'));
-          console.log('etherealBotTwitchRefreshToken = ' + localStorage.getItem('etherealBotTwitchRefreshToken'));
-          console.log('etherealBotProfileImageUrl = ' + localStorage.getItem('etherealBotProfileImageUrl'));
+          // console.log('etherealBotBotUserId = ' + localStorage.getItem('etherealBotBotUserId'));
+          // console.log('etherealBotChatChannelUserId = ' + localStorage.getItem('etherealBotChatChannelUserId'));
+          // console.log('etherealBotStreamAccountName = ' + localStorage.getItem('etherealBotStreamAccountName'));
+          // console.log('etherealBotTwitchOAuthAccessToken = ' + localStorage.getItem('etherealBotTwitchOAuthAccessToken'));
+          // console.log('etherealBotTwitchRefreshToken = ' + localStorage.getItem('etherealBotTwitchRefreshToken'));
+          // console.log('etherealBotProfileImageUrl = ' + localStorage.getItem('etherealBotProfileImageUrl'));
           
 
           //Handling ytPlaylistInitialization
 
         }
-  );
-          // .pipe(
-          //   catchError(this.handleError('addHero', hero))
-          // )
+    );
 
   }
   
@@ -308,7 +224,6 @@ export class AppComponent implements OnInit{
       this.apiLoaded = true;
       
     }
-
 
     
     if(localStorage.getItem('etherealBotStreamAccountName')){ //I've logged in before  //////////XXXXXXXXX
@@ -362,12 +277,14 @@ export class AppComponent implements OnInit{
       );
       
     }
+    
     var dataTest:youtubeVideoInfo[] = [];
-    this.dataSource2 = dataTest;
+    dataTest.forEach((element, index)=> {
+      element.channelTitle = decodeTextForOutput(element.channelTitle);
+      element.songTitle = decodeTextForOutput(element.songTitle);
+    });
+    this.playlistDragDropService.SendSetPlayListDragDropDataSource(dataTest);
     this.settings = getBotSettings();
-    console.log("In OnInit, this.settings = ");
-    console.log(this.settings);
-    tester(this.sharedService);
 
   }
 
@@ -387,10 +304,7 @@ export class AppComponent implements OnInit{
   }
 
   ethBotSettingsMenuOpen(){
-    console.log("App Component this.settings = ");
-    console.log(this.settings);
     this.showSettings = "flex";
-
   }  
   ethBotSettingsCloseWindow(){
     this.showSettings = "none";
@@ -412,9 +326,6 @@ export class AppComponent implements OnInit{
         console.log('Something (correctly) went wrong when querying ZXZZZZZ!');
       });
   }
-
-//  image/webp
-
 
   ytOnReady(event:YT.PlayerEvent){
     console.log("OnReady: " + event.target.getPlayerState().toString());
@@ -440,18 +351,6 @@ export class AppComponent implements OnInit{
     }
   }
 
-  optionalInjectBackUpPlaylist(nextTrack:youtubeVideoInfo){
-    console.log("next track is:");
-    console.log(nextTrack);
-    if (nextTrack.songTitle == ""){
-      //pull from backup playlist                                                                                                   //INJECT BACKUP PLAYLIST CODE HERE
-
-    }
-    else{
-    }
-    return nextTrack;
-  }
-
   ytOnError(event:YT.OnErrorEvent){  //150 video not available
     //output what the error code was.
     console.log("OnError: " + event.data.toString());
@@ -466,12 +365,11 @@ export class AppComponent implements OnInit{
 
   async ytAttemptPlayNextSong(){
 
-    return await playNextSong();
+    return await playNextSong(this.sharedService);
   }
 
   ytBackButton(){
-
-
+    this.player.seekTo(0, true);
   }
 
   ytNextButton(){
@@ -483,9 +381,6 @@ export class AppComponent implements OnInit{
   }
   
   updateActiveSong(ytVI:youtubeVideoInfo){
-    //newTrack:youtubeVideoInfo
-    // console.log('running updateActiveSong');
-    this.updateDragDropRenumber(getPlaylist());
 
     if (this.videoId == ytVI.videoId){
       this.player.seekTo(0, true);
@@ -495,32 +390,13 @@ export class AppComponent implements OnInit{
   }
   
   updateActiveSong_IDOnly(vid:string){
-    //newTrack:youtubeVideoInfo
-    // console.log('running updateActiveSong');
     this.videoId = vid;
   }
-  
-  updateDragDrop(ytVI:youtubeVideoInfo[]){
-    //setting mandatory values for display purposes only. SHOULD NEVER IMPACT underlying data 
-    // ytVI.forEach((element, index)=> {
-      // element.position = index + 1;
-      //element.setShortRealTime();
-    // });
-
-    this.dataSource2 = ytVI;
-    this.table2.renderRows();
+  pausePlaylist(){
+    this.player.pauseVideo();
   }
-
-  updateDragDropRenumber(ytVI:youtubeVideoInfo[]){
-
-    //setting mandatory values for display purposes only. SHOULD NEVER IMPACT underlying data 
-    ytVI.forEach((element, index)=> {
-      element.position = index + 1;
-      //element.setShortRealTime();
-    });
-
-    this.dataSource2 = ytVI;
-    this.table2.renderRows();
+  resumePlaylist(){
+    this.player.playVideo();
   }
 
 ///To my understanding what we want to do for refresh tokens

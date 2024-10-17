@@ -5,16 +5,14 @@ import {AppComponent} from './app/app.component';
 import { SharedService } from './app/shared.service';
 import { moveItemInArray } from '@angular/cdk/drag-drop';
 import { botSettings } from './botSettings';
-import {addTrackToDefaultBackend} from './app/scripts/backendCalls'
-
+import {addTrackToDefaultBackend, getSettings, updateActiveSongBackend, updateSongPlaylistBackend, getNextDefaultTrackFromBackend, removeSongFromBackend, removeFromDefaultPlaylist, addTrackToBackend, getCurrentSongFromBackend, getPlaylistFromBackend} from './app/scripts/backendCalls';
+import {addSongFailMessage, validateVideoSettings, isMod, getBotUserId, playNextSong, generateYTVI, sumActivePlaylistTime, decodeTextForOutput, resumePlaylist, pausePlaylist} from './app/scripts/botSupportingFunctions';
 
 
 
 
 
 /*
-Today's goals: Default Playlist completion
-
 
 COMPLETED
 #	Basic OAuth
@@ -30,6 +28,7 @@ COMPLETED
 	!xskip				///Mod only skip current song (same as next)
 #	Default Playlist	///Plays when there are no songs in queue
 						///first song is the default when a user logs in or opens the page
+	refactor after completing basic features move to typescript where possible.
 Frontend Settings interface
 	Mod override
 #	Length Limit
@@ -41,6 +40,7 @@ Frontend Settings interface
 		Requested By
 		Duration
 		Option to delete from queue
+	Restart Song button
 Cookies
 #	Remember my login
 	NEED TO CHANGE OAUTH TOKEN GENERATION TO BE OPTIONAL/OCCASIONAL	
@@ -57,8 +57,8 @@ L	= Low Priority
 
 
 
-URGENT:
-NEXT:
+URGENT: 
+NEXT: 
 THEN:
 Frontend Queue interface
 	Total Time Per User	///Limits Queue capacity per user to X minutes/hours
@@ -98,6 +98,8 @@ Twitch plays AMQ
 LL	Yes..
 Recurring message posting
 LLL	Standard bot feature. Every x mins post "...."
+Hosting
+	Host on an actual website?
 
 
 //For spotify
@@ -119,9 +121,8 @@ So you need an application to get the chat login token. If you want to do more w
 
 
 
-//import { webSocket } from "rxjs/webSocket";
 // does this array contain results only?
-var playlistArray = [];//['https://www.youtube.com/watch?v=ZXZZZZZZZ', 'https://www.youtube.com/watch?v=aYzt6WJEx10', 'https://www.youtube.com/watch?v=ocQ7sFFxOh4&pp=ygUJaW4gZmxhbWVz', 'https://www.youtube.com/watch?v=LQXgNLGDPgo&pp=ygUZZWR1Y2F0ZWQgZm9vbCBpcm9uIG1haWRlbg%3D%3D'];
+var playlistArray = [];
 var currentSong;
 var sharedService;
 var CLIENT_SECRETID = 'ABC1234';
@@ -145,12 +146,8 @@ var ethBotSettings;
 	// Verify that the authentication is valid
 	//await getOAUTH_TOKEN(); //
 	//CLIENT_ID = environment.CLIENT_ID;
-	//await getAuth();
 
 	//await getUserIDs();
-
-
-	
 
 	// Start WebSocket client and register handlers
 	//const websocketClient = startWebSocketClient();
@@ -162,7 +159,6 @@ export async function externalAccessCall(sentsharedService){
 	OAUTH_TOKEN = localStorage.getItem('etherealBotTwitchOAuthAccessToken');
 	CLIENT_SECRETID = environment.CLIENT_SECRETID;
 	sharedService = sentsharedService;
-	//await getAuth();
 	//await getAppOAUTH_TOKEN();
 	await getAdministrativeUserIDs();
 	// Start WebSocket client and register handlers
@@ -190,35 +186,20 @@ async function initializeCommonSettings(sentSharedService){
 
 
 	initializeSubscribers();
-	
-	const playlistResponse = await fetch('http://localhost:3000/getSettings?userId=' + STREAM_ACCOUNT_NAME  , {
-		method: 'GET',
-		headers: {
-			"Client-ID": CLIENT_ID,
-			"Authorization": "Bearer "+ OAUTH_TOKEN,
-		},
-	});
-	
 
-	if (playlistResponse.status != 200) {
-		let data = await playlistResponse.json();
-		console.log('My backend server errored out on the getSettings request.');
-	}
-
-	let json = await playlistResponse.json();
-
-	ethBotSettings = new botSettings(json.data.lengthLimit, json.data.songsPerUser, json.data.streamChannel, json.data.lengthLimitMod, json.data.songsPerUserMod);
-
+	console.log("before getSettings call");
+	ethBotSettings = await getSettings(OAUTH_TOKEN, STREAM_ACCOUNT_NAME);
+	console.log("ethBotSettings");
+	console.log(ethBotSettings);
 }
 
 export function getStreamAccountName(){
 	return STREAM_ACCOUNT_NAME;
 }
+
 export function getOAuthToken(){
 	return OAUTH_TOKEN;
 }
-
-
 
 export function getBotSettings(){
 	return ethBotSettings;
@@ -232,7 +213,6 @@ export async function initializeWebSocket(sentSharedService){
 
 export async function tryTwitchUserTokenRefresh(sentSharedService){
 	await initializeCommonSettings(sentSharedService);
-	//console.log(localStorage.getItem('etherealBotTwitchRefreshToken'));
 
 	const response = await fetch('https://id.twitch.tv/oauth2/token', {
 		method: 'POST',
@@ -268,93 +248,14 @@ export async function tryTwitchUserTokenRefresh(sentSharedService){
 function initializeSubscribers(){
 	
 	sharedService.GetUpdateActiveSongHook().subscribe((value)=>{
-		updateActiveSongBackend(value);});
+		updateActiveSongBackend(value, OAUTH_TOKEN, STREAM_ACCOUNT_NAME);});
 	sharedService.GetUpdateDragDropSongHook().subscribe((value)=>{
-		updateSongPlaylistBackend(value);
+		updateSongPlaylistBackend(value, OAUTH_TOKEN, STREAM_ACCOUNT_NAME);
 	});
 	sharedService.GetUpdateDragDropSongHookRenumber().subscribe((value)=>{
-		updateSongPlaylistBackend(value);
+		updateSongPlaylistBackend(value, OAUTH_TOKEN, STREAM_ACCOUNT_NAME);
 	});
 
-}
-
-async function updateActiveSongBackend(value){ //single YTVI
-	console.log('value in updateActiveSongBackend');
-	console.log(value);
-	let response = await fetch('http://localhost:3000/currentSong', {
-		method: 'POST',
-		headers: {
-			'Authorization': 'Bearer ' + OAUTH_TOKEN,
-			'Client-Id': CLIENT_ID,
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-			newCurrentSong: value,
-			userId: STREAM_ACCOUNT_NAME,
-		})
-	});
-
-	if (response.status != 200) {
-		let data = await response.json();
-		console.error("Database communication failure: Failed Update Active Song");
-		console.error(data);
-	} else {
-		console.log("Updated Active song.");
-	}
-
-
-}
-
-async function updateSongPlaylistBackend(value){ //multiple YTVI in order
-	//push a newly ordered playlist into the backend
-	//this could contain 1 new item or none.
-	console.log('value in updateSongPlaylistBackend');
-	console.log(value);
-	let response = await fetch('http://localhost:3000/rearrangeSongs', {
-		method: 'POST',
-		headers: {
-			'Authorization': 'Bearer ' + OAUTH_TOKEN,
-			'Client-Id': CLIENT_ID,
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-			reorderedTracks: value,
-			userId: STREAM_ACCOUNT_NAME,
-		})
-	});
-
-	if (response.status != 200) {
-		let data = await response.json();
-		console.error("Database communication failure: Failed to Rearrange tracks in Backend");
-		console.error(data);
-	} else {
-		console.log("Rearranged Tracks Successfully!");
-	}
-}
-
-async function	addTrackToBackend(newTrack){ //YTVI's latest
-	console.log('newTrack in addTrackToBackend');
-	console.log(newTrack);
-	let response = await fetch('http://localhost:3000/addSong', {
-		method: 'POST',
-		headers: {
-			'Authorization': 'Bearer ' + OAUTH_TOKEN,
-			'Client-Id': CLIENT_ID,
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-			newTrack: newTrack,
-			userId: STREAM_ACCOUNT_NAME,
-		})
-	});
-
-	if (response.status != 200) {
-		let data = await response.json();
-		console.error("Database communication failure: Failed to Add Track to Backend");
-		console.error(data);
-	} else {
-		console.log("Added New Song.");
-	}
 }
 
 export async function addTrackToDefaultList(newTrack){
@@ -362,73 +263,13 @@ export async function addTrackToDefaultList(newTrack){
 }
 
 export async function getNextDefaultTrack(){
-	// console.log("currentDefaultSongNumber in getNextDef....= " + currentDefaultSongNumber);
-	const playlistResponse = await fetch('http://localhost:3000/nextDefaultTrack?userid=' + STREAM_ACCOUNT_NAME + '&trackno=' + currentDefaultSongNumber, {
-		method: 'GET',
-		headers: {
-			"Client-ID": CLIENT_ID,
-			"Authorization": "Bearer "+ OAUTH_TOKEN,
-		},
-	});
-	
 
-	if (playlistResponse.status != 200) {
-		let data = await playlistResponse.json();
-		console.log('My backend server errored out on playlist request.');
-	}
-
-	let json = await playlistResponse.json();
-	console.log(json);//this contains the data for the user's playlist
+	let json = await getNextDefaultTrackFromBackend(currentDefaultSongNumber, OAUTH_TOKEN, STREAM_ACCOUNT_NAME);
 
 	//updateCurrentSong here
 	if(json.hasOwnProperty("data")){
 		if(json.data.hasOwnProperty("trackInfo")){
-			if(json.data.trackInfo.hasOwnProperty("uploadStatus")){
-				console.log(json.data.trackInfo.uploadStatus);
-				currentSong.uploadStatus = json.data.trackInfo.uploadStatus;
-			}
-			if(json.data.trackInfo.hasOwnProperty("failureReason")){
-				currentSong.failureReason = json.data.trackInfo.failureReason;
-			}
-			if(json.data.trackInfo.hasOwnProperty("rejectionReason")){
-				currentSong.rejectionReason = json.data.trackInfo.rejectionReason;
-			}
-			if(json.data.trackInfo.hasOwnProperty("privacyStatus")){
-				currentSong.privacyStatus = json.data.trackInfo.privacyStatus;
-			}
-			if(json.data.trackInfo.hasOwnProperty("license")){
-				currentSong.license = json.data.trackInfo.license;
-			}
-			if(json.data.trackInfo.hasOwnProperty("embeddable")){
-				currentSong.embeddable = json.data.trackInfo.embeddable;
-			}
-			if(json.data.trackInfo.hasOwnProperty("publicStatsViewable")){
-				currentSong.publicStatsViewable = json.data.trackInfo.publicStatsViewable;
-			}
-			if(json.data.trackInfo.hasOwnProperty("duration")){
-				currentSong.duration = json.data.trackInfo.duration;
-			}
-			if(json.data.trackInfo.hasOwnProperty("songTitle")){
-				currentSong.songTitle = json.data.trackInfo.songTitle;
-			}
-			if(json.data.trackInfo.hasOwnProperty("channelTitle")){
-				currentSong.channelTitle = json.data.trackInfo.channelTitle;
-			}
-			if(json.data.trackInfo.hasOwnProperty("videoId")){
-				currentSong.videoId = json.data.trackInfo.videoId;
-			}
-			if(json.data.trackInfo.hasOwnProperty("requestedBy")){
-				currentSong.requestedBy = json.data.trackInfo.requestedBy;
-			}
-			if(json.data.trackInfo.hasOwnProperty("position")){
-				currentSong.position = json.data.trackInfo.position;
-			}
-			if(json.data.trackInfo.hasOwnProperty("realTime")){
-				currentSong.realTime = json.data.trackInfo.realTime;
-			}
-			if(json.data.trackInfo.hasOwnProperty("addedTimestamp")){
-				currentSong.addedTimestamp = json.data.trackInfo.addedTimestamp;
-			}
+			currentSong = json.data.trackInfo;
 		}
 		if(json.data.hasOwnProperty("trackNo")){
 			currentDefaultSongNumber = json.data.trackNo;
@@ -439,9 +280,6 @@ export async function getNextDefaultTrack(){
 		}
 	
 	}
-
-
-
 
 }
 
@@ -472,58 +310,20 @@ export async function getNextDefaultTrack(){
 
 // WebSocket will persist the application loop until you exit the program forcefully
 
-
-
-async function getAuth() {
-	// https://dev.twitch.tv/docs/authentication/validate-tokens/#how-to-validate-a-token
-	let response = await fetch('https://id.twitch.tv/oauth2/validate', {
-		method: 'GET',
-		headers: {
-			'Authorization': 'OAuth ' + OAUTH_TOKEN
-		}
-	});
-
-	if (response.status != 200) {
-		let data = await response.json();
-		//console.error("Token is not valid. /oauth2/validate returned status code " + response.status);
-		//console.error(data);
-		return process.exit(1);
-	}
-
-	//console.log("Validated token.");
-}
-
 export async function getAdministrativeUserIDs(){
-	// https://dev.twitch.tv/docs/authentication/validate-tokens/#how-to-validate-a-token
 
 	console.log('Calling getUserIDs\n');
-	const botIDresponse = await fetch('https://api.twitch.tv/helix/users?login=' + BOT_ACCOUNT_NAME  , {
-		method: 'GET',
-		headers: {
-			"Client-ID": CLIENT_ID,
-			"Authorization": "Bearer "+ OAUTH_TOKEN,
-		},
-	});
-	//.then(response => response.json()).then(data => OAUTH_TOKEN=data.access_token);
-    
 
-
-
-	if (botIDresponse.status != 200) {
-		let data = await botIDresponse.json();
-		console.log('Twitch errored out on Bot-ID request.');
+	var results = await getBotUserId();
+	if (results != ''){
+		BOT_USER_ID = results;
+		localStorage.setItem('etherealBotBotUserId', BOT_USER_ID);
+		console.log('Assigned sender_id as: ' + json.data[1].display_name);
+	} else {
 		return process.exit(1);
 	}
 
-	const json = await botIDresponse.json();
-	console.log(json.data[0].display_name);
-	//I think we are assigning correctly. 403 is from bot's permissions on main account 
-	if (json.data[0].display_name == BOT_ACCOUNT_NAME){
-		BOT_USER_ID = json.data[0].id;
-		localStorage.setItem('etherealBotBotUserId', BOT_USER_ID);
-
-		console.log('Assigned sender_id as: ' + json.data[1].display_name);
-	}
+	
 	const ownIDresponse = await fetch('https://api.twitch.tv/helix/users'  , {
 		method: 'GET',
 		headers: {
@@ -545,39 +345,22 @@ export async function getAdministrativeUserIDs(){
 	localStorage.setItem('etherealBotChatChannelUserId', CHAT_CHANNEL_USER_ID);
 	localStorage.setItem('etherealBotStreamAccountName', STREAM_ACCOUNT_NAME);
 	localStorage.setItem('etherealBotProfileImageUrl', json2.data[0].profile_image_url)
-	//json2.data[0].
 	console.log('Assigned broadcaster_id as: ' + json2.data[0].display_name);
-
-	//console.log(json);
-	//console.log("The Chat channel user id = " + CHAT_CHANNEL_USER_ID);
-	//console.log("The Bot user id = " + BOT_USER_ID);
-	
 	console.log('etherealBotProfileImageUrl from getAdministrativeUserIDs is: ' + localStorage.getItem('etherealBotProfileImageUrl'));
-	//console.log(botIDresponse.toString());
 }
 
 
 function startWebSocketClient() {
 	let websocketClient = new WebSocket(EVENTSUB_WEBSOCKET_URL);
-
-
 	//websocketClient.onerror = ((socket, ev) => console.log(ev.toString));
 	//websocketClient.onerror?((sender, e) => {console.error;}): 
 	//console.log("I don't know what is happening with onerror Trigger");
 
 	//websocketClient.onopen = ((sender, ev) => 
 		//console.log('WebSocket connection opened to ' + EVENTSUB_WEBSOCKET_URL)
-	//	thisConsoleFuckery = 'potato'
 	///);
-
-
-	//  websocketClient.on('message', (data) => {
-		// handleWebSocketMessage(JSON.parse(data.toString()));
-	 //});
-
 	websocketClient.onmessage = ((data) =>
 		handleWebSocketMessage(JSON.parse(data.data.toString()))
-		//console.log(data.data)
 	);
 
 	return websocketClient;
@@ -592,7 +375,6 @@ function handleWebSocketMessage(data) {
 
 			// Listen to EventSub, which joins the chatroom from your bot's account
 			registerEventSubListeners();
-			//sendChatMessage('test1234')
 			break;
 		case 'notification': // An EventSub notification has occurred, such as channel.chat.message
 			switch (data.metadata.subscription_type) {
@@ -616,7 +398,7 @@ function handleWebSocketMessage(data) {
 
 					} else if (startsWith('!'+ optionalCommandPrefix +'song', messageText)){
 						if (currentSong != undefined && currentSong != null){
-							sendChatMessage('The current song is ' + currentSong.songTitle + ' by ' + currentSong.channelTitle + '. It was requested by ' + currentSong.requestedBy + '.' + ' https://youtu.be/' + currentSong.videoId);
+							sendChatMessage('The current song is ' + decodeTextForOutput(currentSong.songTitle) + ' by ' + decodeTextForOutput(currentSong.channelTitle) + '. It was requested by ' + currentSong.requestedBy + '.' + ' https://youtu.be/' + currentSong.videoId);
 						} else{
 							sendChatMessage('There is no current song!');
 						}
@@ -624,7 +406,14 @@ function handleWebSocketMessage(data) {
 						wrongSong(sender);
 					}
 					else if(startsWith('!'+ optionalCommandPrefix +'cutdefault', messageText)){
-						removeFromDefaultPlaylist(sender);
+						preprocessRemoveFromDefaultPlaylist(sender);
+					}
+					else if(startsWith('!'+ optionalCommandPrefix +'play', messageText)){
+						console.log("calling play");
+						tryResumePlaylist(sender);
+					}
+					else if(startsWith('!'+ optionalCommandPrefix +'pause', messageText)){
+						tryPausePlaylist(sender);
 					}
 					break;
 			}
@@ -638,13 +427,41 @@ function handleWebSocketMessage(data) {
 
 }
 
+async function tryResumePlaylist(sender){
+	if(await resumePlaylist(sharedService, sender, OAUTH_TOKEN, CHAT_CHANNEL_USER_ID)){
+
+	}
+	else{
+		sendChatMessage("Sorry @" + sender + ", you are not the owner of the channel or a Moderator");
+	}
+}
+async function tryPausePlaylist(sender){
+	if(await pausePlaylist(sharedService, sender, OAUTH_TOKEN, CHAT_CHANNEL_USER_ID)){
+
+	}else{
+		sendChatMessage("Sorry @" + sender + ", you are not the owner of the channel or a Moderator");	
+	}
+}
+
+async function preprocessRemoveFromDefaultPlaylist(sender){
+	if (await isMod(sender, OAUTH_TOKEN, CHAT_CHANNEL_USER_ID) || isOwner(sender)){
+		let results = await removeFromDefaultPlaylist(currentSong, OAUTH_TOKEN, STREAM_ACCOUNT_NAME);
+		if (results == true){
+			sendChatMessage("Successfully removed " + decodeTextForOutput(currentSong.songTitle) + " from default playlist.");
+		}
+		else{
+			sendChatMessage("Something went wrong when I tried removing " + decodeTextForOutput(currentSong.songTitle) + " from default playlist!");
+		}
+	}	
+}
+
 function wrongSong(sender){
 	if(playlistArray.length > 0){
 		for (let i = playlistArray.length; i > 0; i--) {
 			if (playlistArray[i-1].requestedBy == sender){
 				//remove from array
-				removeSongFromBackend(playlistArray[i-1]);
-				sendChatMessage('Removed ' + playlistArray[i-1].songTitle + ' by ' + playlistArray[i-1].channelTitle + ' from playlist.');
+				removeSongFromBackend(playlistArray[i-1], OAUTH_TOKEN, STREAM_ACCOUNT_NAME);
+				sendChatMessage('Removed ' + decodeTextForOutput(playlistArray[i-1].songTitle) + ' by ' + decodeTextForOutput(playlistArray[i-1].channelTitle) + ' from playlist.');
 				playlistArray.splice(i-1,1);
 				sharedService.sendUpdateDragDropSongHookRenumber(playlistArray);
 				i = 0; //halt iteration.
@@ -652,34 +469,6 @@ function wrongSong(sender){
 		}
 	}
 }
-
-async function removeSongFromBackend(track){
-	console.log('newTrack in addTrackToBackend');
-	console.log(track);
-	let response = await fetch('http://localhost:3000/deleteSong', {
-		method: 'POST',
-		headers: {
-			'Authorization': 'Bearer ' + OAUTH_TOKEN,
-			'Client-Id': CLIENT_ID,
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-			track: track,
-			userId: STREAM_ACCOUNT_NAME,
-		})
-	});
-
-	if (response.status != 200) {
-		let data = await response.json();
-		console.error("Database communication failure: Failed to Remove track from Backend");
-		console.error(data);
-	} else {
-		console.log("Removed Song.");
-	}
-
-}
-
-
 
 function startsWith(regex, text){
 	if(text.match('^\s*'+regex)){
@@ -694,28 +483,18 @@ function startsWith(regex, text){
 
 /////Songs functionality
 export function getPlaylist(){
-
 	return playlistArray;
 }
 
 export function clearCurrentSong(){
 	currentSong = undefined;
-
 }
 
 export function getPlaylistLength(){
 	return playlistArray.length;
 }
-export function popPlaylist(){
-	//playlistArray
 
-	//const index = playlistArray.indexOf(1);
-	// const index = 0;
-	// if (index > -1) {
-	// 	playlistArray = playlistArray.splice(index, 1);
-	// }
-
-	
+export function popPlaylist(){	
 	var firstTrack = playlistArray.shift();
 	currentSong = firstTrack;
 	if (playlistArray.length == 0 && firstTrack != undefined && firstTrack != null){
@@ -742,7 +521,7 @@ export async function deletePlaylistAtLocation(ytVideoInfo){
 
 	console.log('Removed:' + playlistArray.splice(ytVideoInfo.position -1, 1));
 	console.log(sharedService);
-	await removeSongFromBackend(ytVideoInfo);
+	await removeSongFromBackend(ytVideoInfo, OAUTH_TOKEN, STREAM_ACCOUNT_NAME);
 	await sharedService.sendUpdateDragDropSongHook(playlistArray);
 }
 
@@ -755,63 +534,10 @@ export function peekPlaylistN(location){
 }
 
 function nextSongInQueue(sender){
-	//console.log('Not ready yet!')
-	//sendChatMessage('The next song in queue feature is not available yet!')
-	if(isMod(sender) || isOwner(sender)){
-		return playNextSong();
+	if(isMod(sender, OAUTH_TOKEN, CHAT_CHANNEL_USER_ID) || isOwner(sender)){
+		return playNextSong(sharedService);
 	}
-
 }
-
-export async function playNextSong(){
-	if (peekPlaylist() != undefined){
-		sharedService.sendUpdateActiveSongHook(popPlaylist());
-		
-		return peekPlaylist().videoId;
-	  }
-	  else{
-		var tempYTVI = await getNextDefaultTrack();
-		if (tempYTVI != undefined && tempYTVI != null){
-		  console.log("tempVI is defined");
-		  console.log(tempYTVI);
-		  sharedService.sendUpdateActiveSongHook(tempYTVI);
-		  return tempYTVI.videoId;
-		}
-  
-		console.log('Playlist is empty you fool!');
-		return "";
-	  }
-}
-
-async function removeFromDefaultPlaylist(){
-	//Untested
-	console.log('remove from DefaultPlaylist');
-	console.log(track);
-	let response = await fetch('http://localhost:3000/deleteDefault', {
-		method: 'POST',
-		headers: {
-			'Authorization': 'Bearer ' + OAUTH_TOKEN,
-			'Client-Id': CLIENT_ID,
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-			track: currentSong,
-			userId: STREAM_ACCOUNT_NAME,
-		})
-	});
-
-	if (response.status != 200) {
-		let data = await response.json();
-		console.error("Database communication failure: Failed to Remove track from Backend");
-		console.error(data);
-	} else {
-		console.log("Removed Song.");
-	}
-
-
-
-}
-
 
 
 //INCOMPLETE
@@ -830,8 +556,7 @@ function isYoutubeURI(messageText){
 
 function getFirstArgOfCommand(command){
 	const regex = /^.*? (\S+.*?$)/i;
-	//console.log(command.replace(regex, $1))
- return command.replace(regex, "$1");
+ 	return command.replace(regex, "$1");
 }
 
 export function tester(SS){
@@ -905,40 +630,17 @@ export function tester(SS){
 async function loadPlaylistFromBackend(sharedServiceArg){
 	sharedService = sharedServiceArg;
 
-	var tempPlaylistArray = await getPlaylistFromBackend();
+	var tempPlaylistArray = await getPlaylistFromBackend(OAUTH_TOKEN, STREAM_ACCOUNT_NAME);
 	if (tempPlaylistArray != null && tempPlaylistArray != undefined){
 		for (const track of tempPlaylistArray) {
-			var ytVI = new youtubeVideoInfo(track.videoId, track.songTitle, track.channelTitle);
-			ytVI.duration = track.duration;
-			ytVI.embeddable = track.embeddable;
-			ytVI.license = track.license;
-			ytVI.privacyStatus = track.privacyStatus;
-			ytVI.publicStatsViewable = track.publicStatsViewable;
-			ytVI.requestedBy = track.requestedBy;
-			ytVI.uploadStatus = track.uploadStatus;
-			ytVI.position = track.position;
-			ytVI.addedTimestamp = track.addedTimestamp;
-			ytVI.setShortRealTime();
-			playlistArray.push(ytVI);
+			playlistArray.push(generateYTVI(track));
 
 		}
 	}
-	var tempCurrentSong = await getCurrentSongFromBackend();
+	var tempCurrentSong = await getCurrentSongFromBackend(OAUTH_TOKEN, STREAM_ACCOUNT_NAME);
 	console.log(tempCurrentSong);
 	if (tempCurrentSong != null && tempCurrentSong != undefined && tempCurrentSong.length > 0 && tempCurrentSong[0].videoId != null && tempCurrentSong[0].videoId != undefined){
-		var ytVI = new youtubeVideoInfo(tempCurrentSong[0].videoId, tempCurrentSong[0].songTitle, tempCurrentSong[0].channelTitle);
-			ytVI.duration = tempCurrentSong[0].duration;
-			ytVI.embeddable = tempCurrentSong[0].embeddable;
-			ytVI.license = tempCurrentSong[0].license;
-			ytVI.privacyStatus = tempCurrentSong[0].privacyStatus;
-			ytVI.publicStatsViewable = tempCurrentSong[0].publicStatsViewable;
-			ytVI.requestedBy = tempCurrentSong[0].requestedBy;
-			ytVI.uploadStatus = tempCurrentSong[0].uploadStatus;
-			ytVI.position = tempCurrentSong[0].position;
-			ytVI.addedTimestamp = tempCurrentSong[0].addedTimestamp;
-			ytVI.setShortRealTime();
-			currentSong = ytVI;
-			//sharedService.sendUpdateActiveSongHook(currentSong);
+			currentSong = generateYTVI(tempCurrentSong[0]);
 			sharedService.sendUpdateActiveSongHookNoDB(currentSong);
 			console.log('rantempCurrentSongStuff');
 	}
@@ -956,239 +658,32 @@ async function loadPlaylistFromBackend(sharedServiceArg){
 	sharedService.sendUpdateDragDropSongHook(playlistArray);
 }
 
-async function getCurrentSongFromBackend(){
-	const playlistResponse = await fetch('http://localhost:3000/currentSong?userid=' + STREAM_ACCOUNT_NAME  , {
-		method: 'GET',
-		headers: {
-			"Client-ID": CLIENT_ID,
-			"Authorization": "Bearer "+ OAUTH_TOKEN,
-		},
-	});
-	
-
-	if (playlistResponse.status != 200) {
-		let data = await playlistResponse.json();
-		console.log('My backend server errored out on playlist request.');
-	}
-
-	let json = await playlistResponse.json();
-	console.log(json.data);//this contains the data for the user's playlist
-	return json.data;
-}
-
-async function getPlaylistFromBackend(){
-
-	const playlistResponse = await fetch('http://localhost:3000/playlist?userid=' + STREAM_ACCOUNT_NAME  , {
-		method: 'GET',
-		headers: {
-			"Client-ID": CLIENT_ID,
-			"Authorization": "Bearer "+ OAUTH_TOKEN,
-		},
-	});
-	
-
-	if (playlistResponse.status != 200) {
-		let data = await playlistResponse.json();
-		console.log('My backend server errored out on playlist request.');
-	}
-
-	let json = await playlistResponse.json();
-	console.log(json.data);//this contains the data for the user's playlist
-	return json.data;
-}
 
 
-function sumActivePlaylistTime(){
-//time from youtube videos is of the format:  P#DT#H#M#S where # is a series of numbers and #DT, #H, #M are optional depending on video length
-	var days = 0;
-	var hours = 0;
-	var minutes = 0;
-	var seconds = 0;
-
-	const regexp = /PT((\d+)DT)?((\d+)H)?((\d+)M)?(\d+)S/g;
-
-	if (playlistArray.length > 0 && currentSong != undefined){
-		for (let i = 0; i < playlistArray.length; i++) {
-			let matches = playlistArray.at(i).duration.matchAll(regexp);
-			for (const match of matches) {
-				if (match.length > 7){
-					if(match[2] != undefined){
-						days += Number(match[2]);
-					}
-					if (match[4] != undefined){
-						hours += Number(match[4]);
-					}
-					if (match[6] != undefined){
-						minutes += Number(match[6]);
-					}
-					if (match[7] != undefined){
-						seconds += Number(match[7]);
-					}
-				}
-			}
-		}
-		if (currentSong != null && currentSong != undefined && currentSong.duration.length > 0){
-			let matches = currentSong.duration.matchAll(regexp);
-			for (const match of matches) {
-				if (match.length > 7){
-					if(match[2] != undefined){
-						days += Number(match[2]);
-					}
-					if (match[4] != undefined){
-						hours += Number(match[4]);
-					}
-					if (match[6] != undefined){
-						minutes += Number(match[6]);
-					}
-					if (match[7] != undefined){
-						seconds += Number(match[7]);
-					}
-				}
-			}
-
-		}
-		var returnString = "";
-		if (days > 0){
-			returnString += days + " days";
-		}
-		if (hours > 0){
-			if (returnString.length > 0){
-				returnString += " ";
-			}
-			returnString += hours + "hrs";
-		}
-		if (minutes > 0){
-			if (returnString.length > 0){
-				returnString += " ";
-			}
-			returnString += minutes + "mins";
-		}
-		if (seconds > 0){
-			if (returnString.length > 0){
-				returnString += " and  ";
-			}
-			returnString += seconds + "secs";
-		}
-		return returnString;
-	} else{
-		return "0 seconds";
-	}
-
-}
 
 function addSongConfirmMessage(ytVI){
 
-	
-	
 	// 'Added ' + result.songTitle + ' to queue in position ' + playlistArray.length + '!'
 	var durationText = sumActivePlaylistTime();
 	if (durationText == "0 seconds"){
-		return 'Added '+ ytVI.songTitle + ' to queue in position ' + playlistArray.length + ' (playing immediately)';
+		return 'Added '+ decodeTextForOutput(ytVI.songTitle) + ' to queue in position ' + playlistArray.length + ' (playing immediately)';
 	}
 	else{
-		return 'Added '+ ytVI.songTitle + ' to queue in position ' + playlistArray.length + ' (playing in ' + sumActivePlaylistTime() + ')';
+		return 'Added '+ decodeTextForOutput(ytVI.songTitle) + ' to queue in position ' + playlistArray.length + ' (playing in ' + sumActivePlaylistTime() + ')';
 	}
 }
 
-function addSongFailMessage(errorMessage, ytVI){
-	return "@" + ytVI.requestedBy + " I was unable to add your track to the queue. " + errorMessage;
 
-}
-
-async function isMod(userName){
-
-	//GET https://api.twitch.tv/helix/users
-	const userResponse = await fetch('https://api.twitch.tv/helix/users?&login=' + userName  , {
-		method: 'GET',
-		headers: {
-			"Client-ID": CLIENT_ID,
-			"Authorization": "Bearer "+ OAUTH_TOKEN,
-		},
-	});
-
-	if (userResponse.status != 200) {
-		let data = await userResponse.json();
-		console.log('Twitch errored out on isMod\'s userID request.');
-		return process.exit(1);
-	}
-
-	const json2 = await userResponse.json();
-	//console.log(json2.data);
-	let tempUserId = json2.data[0].id;
-
-	//GET https://api.twitch.tv/helix/moderation/moderators
-	//console.log('Calling isMod\n');
-	const moderatorResponse = await fetch('https://api.twitch.tv/helix/moderation/moderators?broadcaster_id='+ CHAT_CHANNEL_USER_ID +'&user_id=' + tempUserId  , {
-		method: 'GET',
-		headers: {
-			"Client-ID": CLIENT_ID,
-			"Authorization": "Bearer "+ OAUTH_TOKEN,
-		},
-	});
-    
-
-
-
-	if (moderatorResponse.status != 200) {
-		let data = await moderatorResponse.json();
-		console.log('Twitch errored out on isMod request.');
-		return process.exit(1);
-	}
-
-	const json = await moderatorResponse.json();
-	if (json.data.length > 0){
-		return true;
-	}
-	return false;
-
-}
-
-function isOwner(userName){
+export function isOwner(userName){
 	if (userName == STREAM_ACCOUNT_NAME){
 		return true;
 	}
 	return false;
 }
 
-
-async function validateVideoSettings(ytVI){
-
-	console.log("validateVideoSettings");
-	console.log(ethBotSettings.lengthLimit);
-
-	//need to get twitchInfo for requesting user
-	//display name = ytVI.requestedBy
-				//if mods can't override and not the Owner or mods can override and not mod or owner
-	if( (!(ethBotSettings.lengthLimitMod) && !(isOwner(ytVI.requestedBy))) || (ethBotSettings.modlengthlimit && !(await isMod(ytVI.requestedBy)) && !(isOwner(ytVI.requestedBy))) ){
-	
-		if (ethBotSettings.lengthLimit != "-1"){
-			console.log(youtubeVideoInfo.getRelativeDate(ytVI.duration).getTime());
-			console.log(youtubeVideoInfo.getRelativeDate(ethBotSettings.lengthLimit).getTime());
-
-			if ( youtubeVideoInfo.getRelativeDate(ytVI.duration).getTime() > youtubeVideoInfo.getRelativeDate(ethBotSettings.lengthLimit).getTime()){ ///good odds this needs changing.
-				console.log ("less than duration")
-				return "This track exceeds your maximum duration limit";
-			}
-		}
-	}
-
-	if( (!(ethBotSettings.songsPerUserMod) && !(isOwner(ytVI.requestedBy))) || (ethBotSettings.songsPerUserMod && !(await isMod(ytVI.requestedBy)) && !(isOwner(ytVI.requestedBy))) ){
-		if(ethBotSettings.songsPerUser > -1 && playlistArray != null && playlistArray != undefined && playlistArray.length > 0){
-			
-			var userSongsCount = playlistArray.filter(p => p.requestedBy == ytVI.requestedBy).length;
-			if(userSongsCount > ethBotSettings.songsPerUser){
-				return "Each person may only have " + ethBotSettings.songsPerUser + " tracks in the queue at once.";
-			}
-		}
-	}
-
-	return "Success";
-}
-
-
 async function addSongToQueue(songArg, sender){
 
-console.log("in addSongToQueue");
+	console.log("in addSongToQueue");
 	if(isYoutubeURI(songArg)){
 		console.log("TopHalf");
 		const regex = /^.*watch\?v=([A-Za-z0-9-_]*)(\W.*)?$/i;
@@ -1203,7 +698,7 @@ console.log("in addSongToQueue");
 
 		///////////////////validate video settings
 		console.log("pre-validation");
-		var valResults = await validateVideoSettings(ytVI);
+		var valResults = await validateVideoSettings(ytVI, ethBotSettings, playlistArray, OAUTH_TOKEN, CHAT_CHANNEL_USER_ID);
 		console.log("validation results = " + valResults);
 		console.log(ytVI);
 		if(valResults == "Success"){
@@ -1221,7 +716,7 @@ console.log("in addSongToQueue");
 			result.position = playlistArray.length + 1;
 
 			/////////////////validate video settings
-			var valResults = await validateVideoSettings(result);
+			var valResults = await validateVideoSettings(result, ethBotSettings, playlistArray, OAUTH_TOKEN, CHAT_CHANNEL_USER_ID);
 			if(valResults == "Success"){
 				playlistArray.push(result);
 				sendChatMessage(addSongConfirmMessage(result));
@@ -1231,10 +726,8 @@ console.log("in addSongToQueue");
 			}
 		}
 		else{
-			sendChatMessage('Something went wrong when adding ' + songArg + ' to the list, sorry!');	
-
+			sendChatMessage('Something went wrong when adding ' + decodeTextForOutput(songArg)+ ' to the list, sorry!');	
 		}
-		//sendChatMessage('@'+ sender + ' invalid Youtube URL detected in ' + messageText);
 	}
 
 	if (currentSong == undefined && playlistArray.length > 0){
@@ -1245,20 +738,13 @@ console.log("in addSongToQueue");
 
 	if (currentSong != undefined && playlistArray.length > 0 && playlistArray != null && playlistArray != undefined && playlistArray.length > 0){
 
-		//console.log('playlistArray before sending DragDropSongHook update');
-		//console.log(playlistArray);
-		addTrackToBackend(playlistArray[playlistArray.length-1]); 
+		addTrackToBackend(playlistArray[playlistArray.length-1], OAUTH_TOKEN, STREAM_ACCOUNT_NAME); 
 		sharedService.sendUpdateDragDropSongHook(playlistArray);
 	}	
 
 
 
 }
-
-/////having a backup playilist is optional (we will likely have one soonish)
-////what do when songs run out and someone adds a track?
-////what I want it to do is resume play immediately.
-
 
 
 async function runKeepAliveCheck() {
@@ -1314,7 +800,6 @@ async function sendChatMessage(chatMessage) {
 }
 
 async function registerEventSubListeners() {
-	//console.log('BOT ID = ' + BOT_USER_ID + ' USER ID = ' + CHAT_CHANNEL_USER_ID + ' OAUTHTOKEN = ' + OAUTH_TOKEN);
 	// Register channel.chat.message
 	let response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
 		method: 'POST',
@@ -1341,9 +826,6 @@ async function registerEventSubListeners() {
 
 	if (response.status != 202) {
 		let data = await response.json();
-		//console.error("Failed to subscribe to channel.chat.message. API call returned status code " + response.status);
-		//console.error(data);
-		//return process.exit(1);
 	} else {
 		const data = await response.json();
 		//console.log(`Subscribed to channel.chat.message [${data.data[0].id}]`);
