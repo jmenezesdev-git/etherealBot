@@ -141,7 +141,7 @@ export class youtubeVideoInfo{
 	position = -1;
 	realTime = "";
 	addedTimestamp = "";
-	private static readonly regexp = /PT((\d+)DT)?((\d+)H)?((\d+)M)?((\d+)S)?/g; 
+	public static readonly regexp = /PT((\d+)DT)?((\d+)H)?((\d+)M)?((\d+)S)?/g; 
 
 	constructor(videoId: string, songTitle: string, channelTitle: string){
 		this.videoId = videoId;

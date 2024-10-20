@@ -22,10 +22,13 @@ COMPLETED
 #	it will autoplay the next track in queue
 #	next button will dredge up the next track and play it.
 #	OAuth no longer assumes a default username
+L	!xsonglist			///link to dynamic page containing a readonly view of the current queue
 #	!xsr <required>		///add arg1 to song queue, when in doubt it is YT song.
 #	!xsong 				///Indicates currently playing song information
 	!xwrongsong			///removes users latest song from queue
 	!xskip				///Mod only skip current song (same as next)
+L	!xpause				///pauses active content in queue
+L	!xplay				///plays active content in queue
 #	Default Playlist	///Plays when there are no songs in queue
 						///first song is the default when a user logs in or opens the page
 	refactor after completing basic features move to typescript where possible.
@@ -55,6 +58,10 @@ Database
 WIP = Work in Progress
 L	= Low Priority
 
+TEST
+	Twitch
+		process to automatically refresh OAuth token when running for long sessions.
+
 
 
 URGENT: 
@@ -67,11 +74,8 @@ L	Disabling commands
 L	Enable Spotify/YT 	
 Chat Commands
 	!xlimit <optional>  ///Sets Limits to song requests per user defaults to infinite
-L	!xsonglist			///link to dynamic page containing a readonly view of the current queue
 L		Support Spotify as well as YT
 L	!xremove<optional>	///removes current or nth song in queue
-L	!xpause				///pauses active content in queue
-L	!xplay				///plays active content in queue
 L	!xvoteskip			///initiates vote to skip current song. resets upon hitting a new song or resetting current song.
 L	!lastsong<optional>	///Get song information of nth past song, indicates total past song count
 						///resets on what, login? 12h?
@@ -82,10 +86,6 @@ DJ
 	New custom settings IE higher song limits, ability to skip tracks, etc
 Youtube
 	Rework Youtube.ts to use https://www.npmjs.com/package/ytdl-core so we never run out of API calls.
-Security
-	use dotenv and move environment variables there.
-Twitch
-	process to automatically refresh OAuth token when running for long sessions.
 Backend Server
 	Oauth from backend server. How is this possible if it forces front-end logins?
 Ai Chatbot Integration
@@ -138,7 +138,7 @@ const EVENTSUB_WEBSOCKET_URL = 'wss://eventsub.wss.twitch.tv/ws';
 var currentDefaultSongNumber = 0;
 var websocketSessionID = "";
 var ethBotSettings;
-
+var Error401Calls = 0;
 
 // Start executing the bot from here
 	// Don't at present want this to start without being invoked in this project.
@@ -234,6 +234,8 @@ export async function tryTwitchUserTokenRefresh(sentSharedService){
 	}
 
 	const json = await response.json();
+	console.log("Refreshed Twitch Token!");
+	console.log(json);
 	localStorage.setItem('etherealBotTwitchOAuthAccessToken', json.access_token);
 	localStorage.setItem('etherealBotTwitchRefreshToken', json.refresh_token);
 	OAUTH_TOKEN = json.access_token;
@@ -314,11 +316,12 @@ export async function getAdministrativeUserIDs(){
 
 	console.log('Calling getUserIDs\n');
 
-	var results = await getBotUserId();
+	var results = await getBotUserId(BOT_ACCOUNT_NAME, OAUTH_TOKEN, sharedService);
 	if (results != ''){
+		console.log(results);
 		BOT_USER_ID = results;
 		localStorage.setItem('etherealBotBotUserId', BOT_USER_ID);
-		console.log('Assigned sender_id as: ' + json.data[1].display_name);
+		console.log('Assigned sender_id as: ' + results);
 	} else {
 		return process.exit(1);
 	}
@@ -333,9 +336,20 @@ export async function getAdministrativeUserIDs(){
 	});
 	
 
-	if (ownIDresponse.status != 200) {
+	if (ownIDresponse.status != 200 && ownIDresponse.status != 401) {
 		let data = await ownIDresponse.json();
 		console.log('Twitch errored out on self-ID request.');
+	} else if (ownIDresponse.status == 401 && Error401Calls == 0){
+		console.log("401 Errored. I hope nothing breaks!");
+		Error401Calls = 1;
+		if(await tryTwitchUserTokenRefresh(sharedService) == ''){
+			getAdministrativeUserIDs();
+		}
+		
+		return;
+	} else if (ownIDresponse.status == 401 && Error401Calls != 0){
+		Error401Calls = 0;
+		return;
 	}
 
 	let json2 = await ownIDresponse.json();
@@ -368,7 +382,7 @@ function startWebSocketClient() {
 
 
 function handleWebSocketMessage(data) {
-	//console.log(data)
+	console.log(data);
 	switch (data.metadata.message_type) {
 		case 'session_welcome': // First message you get from the WebSocket server when connecting
 			websocketSessionID = data.payload.session.id; // Register the Session ID it gives us
@@ -377,7 +391,7 @@ function handleWebSocketMessage(data) {
 			registerEventSubListeners();
 			break;
 		case 'notification': // An EventSub notification has occurred, such as channel.chat.message
-			switch (data.metadata.subscription_type) {
+			switch (data.metadata.subscription_type) {   ///////////channel.channel_points_automatic_reward_redemption.add
 				case 'channel.chat.message':
 					// First, print the message to the program's console.
 
@@ -389,10 +403,10 @@ function handleWebSocketMessage(data) {
 					var messageText = data.payload.event.message.text.toString();
 					var sender = data.payload.event.chatter_user_name.toString();
 					console.log(messageText);
-					if (startsWith('!'+ optionalCommandPrefix +'sr', messageText)){
+					if (startsWith('!'+ optionalCommandPrefix + 'sr', messageText)){
 						addSongToQueue(getFirstArgOfCommand(messageText), sender);
 
-					} else if (startsWith('!'+ optionalCommandPrefix +'nextsong', messageText)){
+					} else if (startsWith('!'+ optionalCommandPrefix + 'nextsong', messageText)){
 						
 						nextSongInQueue(sender);
 
@@ -415,6 +429,17 @@ function handleWebSocketMessage(data) {
 					else if(startsWith('!'+ optionalCommandPrefix +'pause', messageText)){
 						tryPausePlaylist(sender);
 					}
+					else if(startsWith('!'+ optionalCommandPrefix +'songlist', messageText)){
+						tryGetSongList(sender);
+					}
+					break;
+				case 'channel.channel_points_custom_reward_redemption.add':
+					console.log('HIT channel.channel_points_custom_reward_redemption.add');
+					//data.payload.event.user_input
+					//data.payload.event.reward.title
+					if (data.payload.event.reward.title == "Add Song"){
+					addSongToQueue(getFirstArgOfCommand(data.payload.event.user_input), 'The bourgeoisie');
+					}
 					break;
 			}
 			break;
@@ -425,6 +450,10 @@ function handleWebSocketMessage(data) {
 
 	}
 
+}
+
+async function tryGetSongList(sender){
+	sendChatMessage("Sorry @" + sender + ", this web server is not currently being publically hosted, but if it were it would be something like localhost:4200/?uid=" + STREAM_ACCOUNT_NAME);
 }
 
 async function tryResumePlaylist(sender){
@@ -790,16 +819,35 @@ async function sendChatMessage(chatMessage) {
 		})
 	});
 
-	if (response.status != 200) {
+	if (response.status != 200 && response.status != 401) {
 		let data = await response.json();
 		//console.error("Failed to send chat message");
 		//console.error(data);
-	} else {
-		//console.log("Sent chat message: " + chatMessage);
+	} else if (response.status == 401 && Error401Calls == 0){
+		console.log("401 Errored. I hope nothing breaks!");
+		Error401Calls = 1;
+		if(await tryTwitchUserTokenRefresh(sharedService) == ''){
+			sendChatMessage(chatMessage);
+		}
+		
+		return;
+	} else if (response.status == 401 && Error401Calls != 0){
+		Error401Calls = 0;
+		return;
 	}
 }
 
+
+
 async function registerEventSubListeners() {
+	if (await registerEventSubListener('channel.chat.message')){
+		registerEventSubListener('channel.channel_points_custom_reward_redemption.add');
+	}
+	return;
+}
+
+
+async function registerEventSubListener(eventType){
 	// Register channel.chat.message
 	let response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
 		method: 'POST',
@@ -809,7 +857,7 @@ async function registerEventSubListeners() {
 			'Content-Type': 'application/json'
 		},
 		body: JSON.stringify({
-			type: 'channel.chat.message',
+			type: eventType,
 			version: '1',
 			condition: {
 				broadcaster_user_id: CHAT_CHANNEL_USER_ID,
@@ -824,11 +872,26 @@ async function registerEventSubListeners() {
 
 
 
-	if (response.status != 202) {
+	if (response.status != 202 && response.status != 401) {
 		let data = await response.json();
-	} else {
+	} else if (response.status == 401 && Error401Calls == 0){
+		console.log("401 Errored. I hope nothing breaks!");
+		Error401Calls = 1;
+		if(await tryTwitchUserTokenRefresh(sharedService) == ''){
+			return await registerEventSubListener();
+		}
+		else{
+			return false;
+		}
+	} else if (response.status == 401 && Error401Calls != 0){
+		Error401Calls = 0;
+		return false;
+	} else if (response.status == 403){
+		console.log('403 error on '+ eventType + ' subscription');
+		return false;
+	}else {
 		const data = await response.json();
-		//console.log(`Subscribed to channel.chat.message [${data.data[0].id}]`);
+		return true;
 	}
 }
 

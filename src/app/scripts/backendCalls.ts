@@ -272,6 +272,6 @@ export async function getPlaylistFromBackend(OAUTH_TOKEN: string, STREAM_ACCOUNT
 	}
 
 	let json = await playlistResponse.json();
-	console.log(json.data);//this contains the data for the user's playlist
+	// console.log(json.data);//this contains the data for the user's playlist
 	return json.data;
 }

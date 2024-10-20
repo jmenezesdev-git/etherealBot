@@ -23,6 +23,7 @@ import { SettingsComponent } from "./settings/settings.component";
 import { playlistDragDropComponent } from "./playlistDragDrop/playlistDragDrop.component";
 import { botSettings } from 'src/botSettings';
 import { decodeTextForOutput, playNextSong } from './scripts/botSupportingFunctions';
+import { publicTrackListComponent } from "./publicTrackList/publicTrackList.component";
 
 // @NgModule({
 //   imports: [BrowserModule, FormsModule, YouTubePlayerModule],
@@ -42,11 +43,13 @@ export interface youtubeVideoInfoDisplay {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [HomeComponent, RouterLink, RouterOutlet, HttpClientModule, FormsModule, YouTubePlayerModule, CdkMenuModule, SettingsComponent, playlistDragDropComponent, CommonModule],
+  imports: [HomeComponent, RouterLink, RouterOutlet, HttpClientModule, FormsModule, YouTubePlayerModule, CdkMenuModule, SettingsComponent, playlistDragDropComponent, CommonModule, publicTrackListComponent],
   templateUrl: './app.component.html',
   encapsulation: ViewEncapsulation.None,
   styleUrls: ['./app.component.css'],
 })
+
+
 
 //[width]="width"
 //[height]="height"
@@ -78,6 +81,9 @@ export class AppComponent implements OnInit{
   connectTwitchVisibility = 'visible';
   showSettings = "none";
   settings: botSettings|undefined; //trying to avoid naming a variable the same as a class
+  showPublicTracks= "none";
+  showMain = "initial";
+  ptlUser: string | null | undefined;
   
 
 
@@ -215,6 +221,23 @@ export class AppComponent implements OnInit{
 
   async ngOnInit() {
 
+    this.route.queryParamMap //get params determine if we want to load main page.
+        .subscribe((params) => {
+          this.paramsObject = { ...params.keys, ...params };
+          if(params.get('uid')){
+            console.log(params.get('uid'));
+            this.showPublicTracks = "flex";
+            this.showMain = "none";
+            if (params.get('uid') != null){
+              this.ptlUser = params.get('uid');
+            }
+          }
+          else{
+            this.showPublicTracks = "none";
+            this.showMain = "initial";
+          }
+        }
+      );
 
 // Youtube setup
     if (!this.apiLoaded) {
@@ -225,6 +248,7 @@ export class AppComponent implements OnInit{
       
     }
 
+    
     
     if(localStorage.getItem('etherealBotStreamAccountName')){ //I've logged in before  //////////XXXXXXXXX
       //try refresh
@@ -287,6 +311,18 @@ export class AppComponent implements OnInit{
     this.settings = getBotSettings();
 
   }
+
+  reinitializePage(){
+    this.router.navigate([], {
+      queryParams: {
+        'uid': null,
+        'code': null,
+      },
+      queryParamsHandling: 'merge'
+    });
+
+  }
+
 
   twLogout(){
     this.twProfilePic = "";

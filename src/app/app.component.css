@@ -280,6 +280,22 @@ hr{border:0;border-top:1px solid #eee;margin:20px 0}
   font-size: large;
 }
 
+.eth-flex-prevent-overlay{
+  min-height: 65px;
+  flex-basis: 65px;
+}
+
+ .eth-fill-leftright{
+  min-width: 250px;
+} 
+
+
+.eth-flex-center{
+  justify-content: flex-start;
+  flex-direction: column;
+  width: 100%;
+}
+
 .eth-middle-right{
   position:absolute;
   top:50%;

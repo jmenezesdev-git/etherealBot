@@ -137,19 +137,12 @@ tempSettings!: botSettings;
     if (this.tempSettings != undefined){
       if(await updateBotSettings(this.tempSettings, getOAuthToken(), getStreamAccountName())){
         console.log("updated Bot settings!");
-        //this.settingsService.sendCloseSettingsEventHook(this.tempSettings);
       }
     }
 
     this.closeSettingsEvent.emit(this.tempSettings);
-    //await botjs.saveSettings();
-    //sendCloseSettingsEventHook(){}
   }
 
-  // getCloseSettingsEventHook(){
-  //   ethBotSettingsSave();
-  //   updateSettings()
-  // }
 }
 
 

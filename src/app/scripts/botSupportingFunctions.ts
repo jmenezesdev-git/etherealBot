@@ -1,11 +1,12 @@
 import { botSettings } from "src/botSettings";
 import { environment } from "../environment";
 import { youtubeVideoInfo } from "./youtube";
-import { getNextDefaultTrack, isOwner, peekPlaylist, popPlaylist } from "src/bot";
+import { getNextDefaultTrack, isOwner, peekPlaylist, popPlaylist, tryTwitchUserTokenRefresh } from "src/bot";
 import { SharedService } from "../shared.service";
 
 
 var CLIENT_ID = environment.CLIENT_ID;
+var Error401Calls = 0;
 
 export async function isMod(userName: string, OAUTH_TOKEN: string, CHAT_CHANNEL_USER_ID: string){
 
@@ -92,7 +93,7 @@ export function addSongFailMessage(errorMessage: any, ytVI: youtubeVideoInfo){
 
 }
 
-export async function getBotUserId(BOT_ACCOUNT_NAME: string, OAUTH_TOKEN: string, ){
+export async function getBotUserId(BOT_ACCOUNT_NAME: string, OAUTH_TOKEN: string, sharedService:SharedService){
 
     const botIDresponse = await fetch('https://api.twitch.tv/helix/users?login=' + BOT_ACCOUNT_NAME  , {
 		method: 'GET',
@@ -102,9 +103,21 @@ export async function getBotUserId(BOT_ACCOUNT_NAME: string, OAUTH_TOKEN: string
 		},
 	});
 
-	if (botIDresponse.status != 200) {
+	if (botIDresponse.status != 200 && botIDresponse.status != 401) {
 		let data = await botIDresponse.json();
 		console.log('Twitch errored out on Bot-ID request.');
+		return '';
+	} else if (botIDresponse.status == 401 && Error401Calls == 0){
+		console.log("401 Errored. I hope nothing breaks!");
+		Error401Calls = 1;
+		if(await tryTwitchUserTokenRefresh(sharedService) == ''){
+			return await getBotUserId(BOT_ACCOUNT_NAME, OAUTH_TOKEN, sharedService);
+		}
+		else{
+			return '';
+		}
+	} else if (botIDresponse.status == 401 && Error401Calls != 0){
+		Error401Calls = 0;
 		return '';
 	}
 
