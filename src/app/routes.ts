@@ -1,17 +1,11 @@
 import {Routes} from '@angular/router';
-import {HomeComponent} from './home/home.component';
-import {DetailsComponent} from './details/details.component';
+import { AppComponent } from './app.component';
 
 const routeConfig: Routes = [
     {
       path: '',
-      component: HomeComponent,
+      component: AppComponent,
       title: 'Ethereal Bot',
-    },
-    {
-      path: 'details/:id',
-      component: DetailsComponent,
-      title: 'Home details',
     },
   ];
   export default routeConfig;

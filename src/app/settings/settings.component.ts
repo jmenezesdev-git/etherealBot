@@ -35,7 +35,7 @@ tempSettings!: botSettings;
   }
 
   async ngOnInit() {
-    console.log("I AM BEING CALLED");
+    //console.log("I AM BEING CALLED");
     // if (this.settings != undefined){
       console.log("this.settings");
       console.log(this.settings);

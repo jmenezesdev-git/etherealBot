@@ -1,10 +1,9 @@
 import {Component, OnInit, ViewChild, ViewEncapsulation} from '@angular/core';
-import {HomeComponent} from './home/home.component';
 import {ActivatedRoute, ParamMap, Router, RouterLink, RouterOutlet} from '@angular/router';
 import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams, HttpClientModule, HttpParameterCodec  } from '@angular/common/http';
 import { catchError, throwError, Subscription, elementAt } from 'rxjs';
 import { environment } from './environment';
-import { externalAccessCall, tester, clearCurrentSong, tryTwitchUserTokenRefresh, initializeWebSocket, getBotSettings} from '../bot';
+import { externalAccessCall, tester, clearCurrentSong, tryTwitchUserTokenRefresh, initializeWebSocket, getBotSettings, getCurrentSong} from '../bot';
 import { youtubeVideoInfo } from './scripts/youtube';
 import { SharedService } from './shared.service';
 import { playlistDragDropService } from './playlistDragDrop/playlistDragDropService';
@@ -43,7 +42,7 @@ export interface youtubeVideoInfoDisplay {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [HomeComponent, RouterLink, RouterOutlet, HttpClientModule, FormsModule, YouTubePlayerModule, CdkMenuModule, SettingsComponent, playlistDragDropComponent, CommonModule, publicTrackListComponent],
+  imports: [RouterLink, RouterOutlet, HttpClientModule, FormsModule, YouTubePlayerModule, CdkMenuModule, SettingsComponent, playlistDragDropComponent, CommonModule, publicTrackListComponent],
   templateUrl: './app.component.html',
   encapsulation: ViewEncapsulation.None,
   styleUrls: ['./app.component.css'],
@@ -58,7 +57,7 @@ export interface youtubeVideoInfoDisplay {
 //  <iframe width="560" height="315" src="https://www.youtube.com/embed/ESv-IwHFOI8?si=DFOA0vr6mjHvxg6D" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
 export class AppComponent implements OnInit{
-  title = 'homes';
+  title = 'EtherealBot';
 
   // clickEventsubscription:Subscription;
 
@@ -71,7 +70,7 @@ export class AppComponent implements OnInit{
   tempString: string|null|undefined ="";
   twProfilePic : string | null | undefined;
 
-  @ViewChild('ytPlayer') player: any;
+  //@ViewChild('ytPlayer') player: any;
   apiLoaded = false;
   videoUrl = 'https://www.youtube.com/watch?v=QIZ9aZD6vs0';
   videoId = 'QIZ9aZD6vs0';// 'ZXZZZZZZZ';
@@ -92,6 +91,9 @@ export class AppComponent implements OnInit{
   startSeconds = 60;
   endSeconds = 120;
 
+  
+  initialVideo = 2;
+  @ViewChild('ytPlayer') player: any;
   // @ViewChild('ytPlayer') child_component: YouTubePlayer;
 
 
@@ -101,15 +103,7 @@ export class AppComponent implements OnInit{
 
 
   constructor(private router: Router, private route: ActivatedRoute, private http: HttpClient, private sharedService:SharedService, private playlistDragDropService:playlistDragDropService){
-    this.sharedService.GetUpdateActiveSongHook().subscribe((value)=>{
-      this.updateActiveSong(value);});
-    this.sharedService.GetUpdateActiveSongHookNoDB().subscribe((value)=>{
-      this.updateActiveSong(value);});
-      
-    this.sharedService.GetPlaylistPauseRequest().subscribe((value)=>{
-      this.pausePlaylist();});
-    this.sharedService.GetPlaylistResumeRequest().subscribe((value)=>{
-      this.resumePlaylist();});
+
   }
 
 
@@ -217,7 +211,32 @@ export class AppComponent implements OnInit{
 
   }
   
+  ngAfterViewInit(): void {
+    const doc = (<any>window).document;
+    const playerApiScript = doc.createElement('script');
+    playerApiScript.type = 'text/javascript';
+    playerApiScript.src = 'https://www.youtube.com/iframe_api';
+    doc.body.appendChild(playerApiScript);
 
+    (<any>window).onYouTubeIframeAPIReady = () => {
+      this.player = new (<any>window).YT.Player('ytPlayer', {
+        height: '500px',
+        width: '100%',
+        //videoId: 'hHMyZR87VvQ',
+        playerVars: { 'autoplay': 0, 'rel': 0, 'controls': 2, 'origin':'http://localhost:4200' },
+        events: {
+          'onReady': (event: any) => {
+            console.log('Player is ready');
+            this.ytOnReady(event);
+          },
+          'onStateChange': (event: any) => {
+            this.ytOnStateChange(event);
+          }
+        }
+      });
+    };
+    
+  }
 
   async ngOnInit() {
 
@@ -365,11 +384,25 @@ export class AppComponent implements OnInit{
 
   ytOnReady(event:YT.PlayerEvent){
     console.log("OnReady: " + event.target.getPlayerState().toString());
+    this.sharedService.GetUpdateActiveSongHook().subscribe((value)=>{
+      this.updateActiveSong(value);});
+    this.sharedService.GetUpdateActiveSongHookNoDB().subscribe((value)=>{
+      this.updateActiveSong(value);});
+      
+    this.sharedService.GetPlaylistPauseRequest().subscribe((value)=>{
+      this.pausePlaylist();});
+    this.sharedService.GetPlaylistResumeRequest().subscribe((value)=>{
+      this.resumePlaylist();});
+
+    var currentSong = getCurrentSong();
+    console.log(currentSong);
+    this.player.cueVideoById({videoId:currentSong.videoId});
     //this.player.playerVars = "autoplay=1"
     this.player.mute();         
     //this.player.playVideo();    
 
-      
+    //this.player.cueVideoById({videoId:"QIZ9aZD6vs0"});
+    this.player.pauseVideo();
   }
 
   async ytOnStateChange(event:YT.OnStateChangeEvent){//one of the state changes is pause/play
@@ -382,7 +415,13 @@ export class AppComponent implements OnInit{
         clearCurrentSong();
       }
     }
-    else if (event.data.toString() == "5"){
+    if (event.data.toString() == "3"){
+      this.initialVideo = 0;
+    }
+    else if (event.data.toString() == "5" && this.initialVideo > 0){
+      this.initialVideo--;
+    }
+    else if (event.data.toString() == "5" && this.initialVideo == 0){
       event.target.playVideo();
     }
   }
@@ -423,10 +462,14 @@ export class AppComponent implements OnInit{
     }
 
     this.videoId = ytVI.videoId;
+    
+    this.player.playerVars = { 'autoplay': 1, 'rel': 0, 'controls': 2 };
+    this.player.cueVideoById({videoId:ytVI.videoId});
   }
   
   updateActiveSong_IDOnly(vid:string){
     this.videoId = vid;
+    this.player.cueVideoById({videoId:vid});
   }
   pausePlaylist(){
     this.player.pauseVideo();

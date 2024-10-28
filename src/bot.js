@@ -64,7 +64,7 @@ TEST
 
 
 
-URGENT: 
+URGENT: time calculation for add song is wrong!
 NEXT: 
 THEN:
 Frontend Queue interface
@@ -133,7 +133,7 @@ var STREAM_ACCOUNT_NAME = '___EMPTIED_PRIOR_TO_COMMIT__'; //need to set for alte
 var BOT_ACCOUNT_NAME = 'etherealBot';//need to set for alternative channels
 var CHAT_CHANNEL_USER_ID = 'CHANGE_ME_TO_THE_CHAT_CHANNELS_USER_ID'; // This is the User ID of the channel that the bot will join and listen to chat messages of
 //What is the channel I am currently in?
-var optionalCommandPrefix = 'x';
+var optionalCommandPrefix = '';
 const EVENTSUB_WEBSOCKET_URL = 'wss://eventsub.wss.twitch.tv/ws';
 var currentDefaultSongNumber = 0;
 var websocketSessionID = "";
@@ -166,15 +166,15 @@ export async function externalAccessCall(sentsharedService){
 }
 
 async function initializeCommonSettings(sentSharedService){
-	if(sentSharedService == null){
-		console.log("sentSharedService is null");
-	}
-	if(sentSharedService == undefined){
-		console.log("sentSharedService is undefined");
-	} else if (sentSharedService != undefined && sentSharedService != null){
-		console.log("sentSharedService is defined");
+	// if(sentSharedService == null){
+	// 	console.log("sentSharedService is null");
+	// }
+	// if(sentSharedService == undefined){
+	// 	console.log("sentSharedService is undefined");
+	// } else if (sentSharedService != undefined && sentSharedService != null){
+	// 	console.log("sentSharedService is defined");
 
-	}
+	// }
 
 	CLIENT_ID = environment.CLIENT_ID;
 	CLIENT_SECRETID = environment.CLIENT_SECRETID;
@@ -187,7 +187,7 @@ async function initializeCommonSettings(sentSharedService){
 
 	initializeSubscribers();
 
-	console.log("before getSettings call");
+	//console.log("before getSettings call");
 	ethBotSettings = await getSettings(OAUTH_TOKEN, STREAM_ACCOUNT_NAME);
 	console.log("ethBotSettings");
 	console.log(ethBotSettings);
@@ -203,6 +203,10 @@ export function getOAuthToken(){
 
 export function getBotSettings(){
 	return ethBotSettings;
+}
+
+export function getCurrentSong(){
+	return currentSong;
 }
 
 export async function initializeWebSocket(sentSharedService){
@@ -235,7 +239,7 @@ export async function tryTwitchUserTokenRefresh(sentSharedService){
 
 	const json = await response.json();
 	console.log("Refreshed Twitch Token!");
-	console.log(json);
+	//console.log(json);
 	localStorage.setItem('etherealBotTwitchOAuthAccessToken', json.access_token);
 	localStorage.setItem('etherealBotTwitchRefreshToken', json.refresh_token);
 	OAUTH_TOKEN = json.access_token;
@@ -382,7 +386,7 @@ function startWebSocketClient() {
 
 
 function handleWebSocketMessage(data) {
-	console.log(data);
+	// console.log(data);
 	switch (data.metadata.message_type) {
 		case 'session_welcome': // First message you get from the WebSocket server when connecting
 			websocketSessionID = data.payload.session.id; // Register the Session ID it gives us
@@ -667,19 +671,19 @@ async function loadPlaylistFromBackend(sharedServiceArg){
 		}
 	}
 	var tempCurrentSong = await getCurrentSongFromBackend(OAUTH_TOKEN, STREAM_ACCOUNT_NAME);
-	console.log(tempCurrentSong);
+	//console.log(tempCurrentSong);
 	if (tempCurrentSong != null && tempCurrentSong != undefined && tempCurrentSong.length > 0 && tempCurrentSong[0].videoId != null && tempCurrentSong[0].videoId != undefined){
 			currentSong = generateYTVI(tempCurrentSong[0]);
-			sharedService.sendUpdateActiveSongHookNoDB(currentSong);
-			console.log('rantempCurrentSongStuff');
+			sharedService.sendUpdateActiveSongHookNoDB(currentSong);// solely updates front-end video content
+	//		console.log('rantempCurrentSongStuff');
 	}
 	if ((currentSong == null || currentSong == undefined) && playlistArray.length > 0){
-		console.log('getting a new currentSong I hope');
+	//	console.log('getting a new currentSong I hope');
 		sharedService.sendUpdateActiveSongHook(popPlaylist());
 	}
 	if ((currentSong == null || currentSong == undefined) && playlistArray.length <= 0){
 		var tempYTVI = await getNextDefaultTrack();
-		console.log("currentDefaultSongNumber = " + currentDefaultSongNumber);
+	//	console.log("currentDefaultSongNumber = " + currentDefaultSongNumber);
 		if (tempYTVI != undefined && tempYTVI != null){
 			sharedService.sendUpdateActiveSongHook(tempYTVI);
 		}
@@ -693,12 +697,12 @@ async function loadPlaylistFromBackend(sharedServiceArg){
 function addSongConfirmMessage(ytVI){
 
 	// 'Added ' + result.songTitle + ' to queue in position ' + playlistArray.length + '!'
-	var durationText = sumActivePlaylistTime();
+	var durationText = sumActivePlaylistTime(playlistArray, currentSong);
 	if (durationText == "0 seconds"){
 		return 'Added '+ decodeTextForOutput(ytVI.songTitle) + ' to queue in position ' + playlistArray.length + ' (playing immediately)';
 	}
 	else{
-		return 'Added '+ decodeTextForOutput(ytVI.songTitle) + ' to queue in position ' + playlistArray.length + ' (playing in ' + sumActivePlaylistTime() + ')';
+		return 'Added '+ decodeTextForOutput(ytVI.songTitle) + ' to queue in position ' + playlistArray.length + ' (playing in ' + sumActivePlaylistTime(playlistArray, currentSong) + ')';
 	}
 }
 

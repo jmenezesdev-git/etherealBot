@@ -83,9 +83,10 @@
       <h2 class="eth-text-light-gray">Render youtube video</h2>
       
 
-      <div>
+      <!-- <div>
           <youtube-player #ytPlayer [playerVars]="ytPlayerVars" (error)="ytOnError($event)" (apiChange)="ytOnApiChange($event)" (ready)="ytOnReady($event)" (stateChange)="ytOnStateChange($event)" [videoId]="videoId" suggestedQuality="small"> </youtube-player>
-      </div>
+      </div> -->
+      <div #ytPlayer id="ytPlayer"></div>
       <div class="w3-row-padding" style="margin:0 -16px">
           <div class="w3-half w3-margin-bottom">
               <button class="w3-button eth-text-light-gray" (click)="ytBackButton()" type="button">Run It Back!</button>

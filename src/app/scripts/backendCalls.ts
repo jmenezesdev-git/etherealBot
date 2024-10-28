@@ -112,8 +112,8 @@ export async function updateActiveSongBackend(value: youtubeVideoInfo, OAUTH_TOK
 export async function updateSongPlaylistBackend(value: youtubeVideoInfo[], OAUTH_TOKEN: string, STREAM_ACCOUNT_NAME: string){ //multiple YTVI in order
 	//push a newly ordered playlist into the backend
 	//this could contain 1 new item or none.
-	console.log('value in updateSongPlaylistBackend');
-	console.log(value);
+	//console.log('value in updateSongPlaylistBackend');
+	//console.log(value);
 	let response = await fetch('http://localhost:3000/rearrangeSongs', {
 		method: 'POST',
 		headers: {
@@ -132,7 +132,7 @@ export async function updateSongPlaylistBackend(value: youtubeVideoInfo[], OAUTH
 		console.error("Database communication failure: Failed to Rearrange tracks in Backend");
 		console.error(data);
 	} else {
-		console.log("Rearranged Tracks Successfully!");
+		//console.log("Rearranged Tracks Successfully!");
 	}
 }
 

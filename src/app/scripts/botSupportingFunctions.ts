@@ -173,13 +173,16 @@ export function sumActivePlaylistTime(playlistArray: youtubeVideoInfo[], current
     var seconds = 0;
 
     const regexp = /PT((\d+)DT)?((\d+)H)?((\d+)M)?((\d+)S)?/g;
-
     if (playlistArray != undefined && playlistArray.length > 0 && currentSong != undefined){
+        
+        console.log("inside first IF for sumActivePlaylistTime. Len= " + playlistArray.length);
         for (let i = 0; i < playlistArray.length; i++) {
             let tempM = playlistArray.at(i);
             if (tempM != undefined && tempM != null){
+                console.log("TempM.duration= " + tempM.duration);
                 let matches = tempM.duration.matchAll(regexp);
                 for (const match of matches) {
+                    console.log("match=" + match);
                     if (match.length > 8){
                         if(match[2] != undefined){
                             days += Number(match[2]);
@@ -216,6 +219,18 @@ export function sumActivePlaylistTime(playlistArray: youtubeVideoInfo[], current
                 }
             }
         }
+        while (seconds>59){
+            seconds = seconds - 60;
+            minutes+=1;
+        }
+        while (minutes>59){
+            minutes = minutes - 60;
+            hours+=1;
+        }
+        while (hours>23){
+            hours = hours - 24;
+            days+=1;
+        }
         var returnString = "";
         if (days > 0){
             returnString += days + " days";
@@ -246,8 +261,8 @@ export function sumActivePlaylistTime(playlistArray: youtubeVideoInfo[], current
 }
 
 export function decodeTextForOutput(text: string){
-    text = text.replace("&amp;", "&").replace("&nbsp;", " ").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
-    .replace("&quot;", "\"").replace("&apos;", "'").replace("&cent;", "¢").replace("&pound;", "£").replace("&yen;", "¥").replace("&euro;", "€").replace("&copy;", "©").replace("&reg;", "®");
+    text = text.replaceAll("&amp;", "&").replaceAll("&nbsp;", " ").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&")
+    .replaceAll("&quot;", "\"").replaceAll("&apos;", "'").replaceAll("&cent;", "¢").replaceAll("&pound;", "£").replaceAll("&yen;", "¥").replaceAll("&euro;", "€").replaceAll("&copy;", "©").replaceAll("&reg;", "®");
 
     return text;
 }
