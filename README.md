@@ -1,9 +1,8 @@
-etherealBot is an incomplete project that is being currently written with the goal of making a chatbot for twitch that has the following features:
+etherealBot is an Angular project that was written with the goal of making a chatbot for twitch that has the following features:
 
 Embedded media request player
-Embedded ai chatbot
 
-At present it is very much a work in progress.
+At present, core features are working. It requires access to it's backend project which itself requires access to a mongodb instance.
 
 Not attached to the Github project is a file environment.ts
 The file is of the structure:
